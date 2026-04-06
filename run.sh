@@ -48,4 +48,4 @@ fi
 
 echo "[run] Starting app dev server..."
 cd "$APP_DIR"
-pnpm dev --host
+pnpm run preview --host
