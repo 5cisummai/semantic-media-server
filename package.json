@@ -1,8 +1,8 @@
 {
 	"name": "vectraspace",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
-	"description": "Vectraspace CLI for local media search and management",
+	"description": "Vectraspace media server for local media search and management",
 	"license": "MIT",
 	"files": [
 		"bin",
@@ -27,6 +27,7 @@
 		"ps": "node ./bin/vectraspace.js ps",
 		"doctor": "node ./bin/vectraspace.js doctor",
 		"index": "node ./bin/vectraspace.js index",
-		"search": "node ./bin/vectraspace.js search"
+		"search": "node ./bin/vectraspace.js search",
+		"postinstall": "node ./bin/postinstall.js"
 	}
 }
