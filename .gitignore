@@ -1,6 +1,6 @@
-/.svelte-kit
-/build
-/package
+.svelte-kit
+build
+package
 
 # Dependencies
 node_modules

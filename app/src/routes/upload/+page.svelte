@@ -47,9 +47,17 @@
 		return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 	}
 
+	function createUploadId() {
+		if (globalThis.crypto?.randomUUID) {
+			return globalThis.crypto.randomUUID();
+		}
+
+		return `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+	}
+
 	function addFiles(incoming: FileList | File[]) {
 		const newFiles: UploadFile[] = Array.from(incoming).map((f) => ({
-			id: crypto.randomUUID(),
+			id: createUploadId(),
 			file: f,
 			status: 'pending',
 			progress: 0
