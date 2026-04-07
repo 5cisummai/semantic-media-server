@@ -498,7 +498,7 @@
 	<header class="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
 		<div class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
 			<HardDrive class="h-5 w-5 text-primary" />
-			<span class="font-semibold tracking-tight">MediaServer</span>
+			<span class="font-semibold tracking-tight">Vectraspace</span>
 
 			<Separator orientation="vertical" class="mx-1 h-5" />
 
