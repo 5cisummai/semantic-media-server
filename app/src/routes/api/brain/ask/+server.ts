@@ -17,6 +17,7 @@ import {
 	saveUserMessage
 } from '$lib/server/chat-store';
 import {
+	appendRunToolStreamEvent,
 	createBackgroundRun,
 	markRunAwaitingConfirmation,
 	markRunDone,
@@ -197,7 +198,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				const outcome = await runBrainAgentLoop(bodyForAgent, {
 					userId: user.id,
 					chatId,
-					toolExec: { userId: user.id, isAdmin: user.role === 'ADMIN' }
+					toolExec: { userId: user.id, isAdmin: user.role === 'ADMIN' },
+					onToolEvent: (event) => {
+						appendRunToolStreamEvent(run.id, { type: event.type, tool: event.tool });
+					}
 				});
 
 				if (outcome.kind === 'pending_confirmation') {

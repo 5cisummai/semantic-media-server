@@ -53,8 +53,8 @@ const AGENT_SYSTEM_PROMPT = `You are an intelligent assistant for a personal fil
 You have tools to search, browse, read, move, copy, create folders, and delete the user's files.
 Destructive or mutating actions (delete, move, copy, mkdir) require explicit user approval in the UI — the user will confirm before those tools run.
 Use tools to find accurate information before answering.
-For directory questions use list_directory not search_files.
-For content questions use search_files first.
+For directory questions use list_directory not search.
+For content questions use search first.
 For specific file questions use read_file.
 Always cite which files your answer draws from.
 Never guess — use a tool if you need information.`;
@@ -250,9 +250,7 @@ export async function runBrainAgentLoop(
 		}
 
 		const effectiveArgs =
-			result.toolName === 'search_files'
-				? applySearchDefaults(result.toolArgs, filters)
-				: result.toolArgs;
+			result.toolName === 'search' ? applySearchDefaults(result.toolArgs, filters) : result.toolArgs;
 
 		if (toolRequiresUserConfirmation(result.toolName)) {
 			const assistantMsg = extractAssistantToolCallMessage(result);
@@ -303,7 +301,7 @@ export async function runBrainAgentLoop(
 			resultSummary: summarizeToolResult(toolResult)
 		});
 
-		if (result.toolName === 'search_files') {
+		if (result.toolName === 'search') {
 			await appendSourcesFromSearchCall(sourceMap, effectiveArgs);
 		}
 

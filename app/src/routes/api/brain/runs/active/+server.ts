@@ -21,6 +21,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 			status: run.status,
 			error: run.error ?? null,
 			pendingToolConfirmation: run.pendingToolConfirmation ?? null,
+			toolStreamLog: run.toolStreamLog ?? [],
 			createdAt: run.createdAt,
 			updatedAt: run.updatedAt
 		}

@@ -2,7 +2,6 @@
 	import { tick } from 'svelte';
 	import { apiFetch } from '$lib/api-fetch';
 	import { Button } from '$lib/components/ui/button';
-	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import ChatMessageBubble from './chat-message-bubble.svelte';
 	import ChatComposer from './chat-composer.svelte';
 	import ChatToolbar from './chat-toolbar.svelte';
@@ -28,7 +27,9 @@
 	let input = $state('');
 	let loading = $state(false);
 	let error = $state<string | null>(null);
-	let streamingToolLabel = $state<string | null>(null);
+	type ToolActionStep = { label: string; done: boolean };
+
+	let streamingToolSteps = $state<ToolActionStep[]>([]);
 	let pendingToolConfirmation = $state<PendingToolConfirmation | null>(null);
 	let scrollEl = $state<HTMLElement | null>(null);
 	let loadingConversation = $state(false);
@@ -52,27 +53,64 @@
 	};
 
 	type BackgroundRunStatus = 'queued' | 'running' | 'awaiting_confirmation' | 'done' | 'failed';
+	type BackgroundToolStreamEntry = { type: 'tool_start' | 'tool_done'; tool: string };
 	type BackgroundRunPayload = {
 		id: string;
 		chatId: string;
 		status: BackgroundRunStatus;
 		error?: string | null;
 		pendingToolConfirmation?: PendingToolConfirmation | null;
+		toolStreamLog?: BackgroundToolStreamEntry[];
 	};
 
 	function toolLabelForName(name: string): string {
 		const map: Record<string, string> = {
 			list_directory: 'Browsing files',
-			search_files: 'Searching files',
+			search: 'Searching files',
 			read_file: 'Reading file',
 			get_file_info: 'Checking file',
 			search_by_metadata: 'Filtering files',
+			move_files: 'Moving files (needs your approval)',
 			delete_file: 'Delete (needs your approval)',
 			move_file: 'Move (needs your approval)',
 			copy_file: 'Copy (needs your approval)',
 			mkdir: 'Create folder (needs your approval)'
 		};
 		return map[name] ?? `Using ${name}`;
+	}
+
+	function toolStepsFromStreamLog(
+		events: Array<{ type: string; tool: string }>
+	): ToolActionStep[] {
+		const steps: ToolActionStep[] = [];
+		for (const e of events) {
+			if (e.type === 'tool_start' && typeof e.tool === 'string') {
+				steps.push({ label: toolLabelForName(e.tool), done: false });
+			} else if (e.type === 'tool_done' && typeof e.tool === 'string') {
+				for (let i = steps.length - 1; i >= 0; i--) {
+					if (!steps[i].done) {
+						steps[i] = { ...steps[i], done: true };
+						break;
+					}
+				}
+			}
+		}
+		return steps;
+	}
+
+	function pushToolStart(name: string) {
+		streamingToolSteps = [...streamingToolSteps, { label: toolLabelForName(name), done: false }];
+	}
+
+	function markLastToolDone() {
+		for (let i = streamingToolSteps.length - 1; i >= 0; i--) {
+			if (!streamingToolSteps[i].done) {
+				streamingToolSteps = streamingToolSteps.map((s, j) =>
+					j === i ? { ...s, done: true } : s
+				);
+				break;
+			}
+		}
 	}
 
 	function actionTitleForTool(name: string): string {
@@ -153,13 +191,18 @@
 		}, 1200);
 	}
 
-	async function beginBackgroundRunTracking(runId: string, chatId: string) {
+	async function beginBackgroundRunTracking(
+		runId: string,
+		chatId: string,
+		initialToolLog?: BackgroundToolStreamEntry[]
+	) {
 		backgroundRunId = runId;
 		activeChatId = chatId;
 		loading = true;
 		activeAgentStatus = 'working';
 		error = null;
-		streamingToolLabel = null;
+		streamingToolSteps =
+			initialToolLog && initialToolLog.length > 0 ? toolStepsFromStreamLog(initialToolLog) : [];
 		pendingToolConfirmation = null;
 		scheduleBackgroundPoll(runId);
 	}
@@ -172,7 +215,7 @@
 		const payload = (await response.json()) as { run?: BackgroundRunPayload | null };
 		const run = payload.run;
 		if (!run || !run.id) return;
-		await beginBackgroundRunTracking(run.id, run.chatId);
+		await beginBackgroundRunTracking(run.id, run.chatId, run.toolStreamLog);
 	}
 
 	async function pollBackgroundRun(runId: string) {
@@ -185,13 +228,16 @@
 
 			const run = (await response.json()) as BackgroundRunPayload;
 			if (run.status === 'queued' || run.status === 'running') {
+				if (Array.isArray(run.toolStreamLog)) {
+					streamingToolSteps = toolStepsFromStreamLog(run.toolStreamLog);
+				}
 				scheduleBackgroundPoll(runId);
 				return;
 			}
 
 			backgroundRunId = null;
 			clearBackgroundPolling();
-			streamingToolLabel = null;
+			streamingToolSteps = [];
 			loading = false;
 
 			if (run.status === 'awaiting_confirmation' && run.pendingToolConfirmation) {
@@ -222,30 +268,27 @@
 			error = err instanceof Error ? err.message : 'Background run status failed';
 			loading = false;
 			activeAgentStatus = 'done';
+			streamingToolSteps = [];
 			clearBackgroundPolling();
 			backgroundRunId = null;
 		}
 	}
 
+	// Auto-scroll to bottom when messages, loading, or tool steps change.
+	// $effect runs after DOM updates so no tick() is needed.
 	$effect(() => {
 		void messages;
 		void loading;
-		void streamingToolLabel;
-		void scrollEl;
-		void tick().then(() => {
-			if (scrollEl) {
-				scrollToBottom();
-			}
-		});
+		void streamingToolSteps;
+		scrollToBottom();
 	});
 
+	// Scroll a specific message into view after it's rendered
 	$effect(() => {
 		const id = pendingScrollMessageId;
 		if (!id) return;
-		void tick().then(() => {
-			scrollMessageIntoView(id);
-			pendingScrollMessageId = null;
-		});
+		scrollMessageIntoView(id);
+		pendingScrollMessageId = null;
 	});
 
 	function processStreamEvent(
@@ -284,7 +327,7 @@
 		}
 
 		if (obj.type === 'tool_confirmation_required') {
-			streamingToolLabel = null;
+			streamingToolSteps = [];
 			if (
 				typeof obj.pendingId === 'string' &&
 				typeof obj.tool === 'string' &&
@@ -307,12 +350,12 @@
 		}
 
 		if (obj.type === 'tool_start' && typeof obj.tool === 'string') {
-			streamingToolLabel = toolLabelForName(obj.tool);
+			pushToolStart(obj.tool);
 			return { assistantId, assistantContent, pendingMeta };
 		}
 
 		if (obj.type === 'tool_done') {
-			streamingToolLabel = null;
+			markLastToolDone();
 			return { assistantId, assistantContent, pendingMeta };
 		}
 
@@ -334,9 +377,7 @@
 			pendingMeta = next;
 
 			if (assistantId) {
-				messages = messages.map((m) =>
-					m.id === assistantId ? mergeMetaIntoMessage(m, next) : m
-				);
+				messages = messages.map((m) => (m.id === assistantId ? mergeMetaIntoMessage(m, next) : m));
 			}
 			return { assistantId, assistantContent, pendingMeta };
 		}
@@ -368,7 +409,6 @@
 						meta ?? {}
 					)
 				];
-				streamingToolLabel = null;
 			} else {
 				assistantContent += chunk;
 				messages = messages.map((m) => {
@@ -390,12 +430,10 @@
 
 		if (obj.type === 'done') {
 			loading = false;
-			streamingToolLabel = null;
+			streamingToolSteps = [];
 			if (assistantId && pendingMeta) {
 				messages = messages.map((m) =>
-					m.id === assistantId
-						? { ...mergeMetaIntoMessage(m, pendingMeta!), status: 'success' }
-						: m
+					m.id === assistantId ? { ...mergeMetaIntoMessage(m, pendingMeta!), status: 'success' } : m
 				);
 				pendingMeta = null;
 			} else if (assistantId) {
@@ -431,10 +469,7 @@
 		return { assistantId, assistantContent, pendingMeta };
 	}
 
-	async function readNdjsonStream(
-		response: Response,
-		assistantIdRef: { current: string | null }
-	) {
+	async function readNdjsonStream(response: Response, assistantIdRef: { current: string | null }) {
 		if (!response.body) throw new Error('No response body');
 
 		const reader = response.body.getReader();
@@ -507,14 +542,11 @@
 		}
 	}
 
-	async function sendAsk(options: {
-		question: string;
-		regenerate?: boolean;
-	}): Promise<void> {
+	async function sendAsk(options: { question: string; regenerate?: boolean }): Promise<void> {
 		loading = true;
 		activeAgentStatus = 'working';
 		error = null;
-		streamingToolLabel = null;
+		streamingToolSteps = [];
 		pendingToolConfirmation = null;
 
 		try {
@@ -551,7 +583,7 @@
 		} catch (err) {
 			loading = false;
 			activeAgentStatus = 'done';
-			streamingToolLabel = null;
+			streamingToolSteps = [];
 			const msg = err instanceof Error ? err.message : 'An error occurred';
 			error = msg;
 		}
@@ -584,7 +616,7 @@
 		loading = true;
 		activeAgentStatus = 'working';
 		error = null;
-		streamingToolLabel = null;
+		streamingToolSteps = [];
 		pendingToolConfirmation = null;
 
 		try {
@@ -619,7 +651,7 @@
 		} catch (err) {
 			loading = false;
 			activeAgentStatus = 'done';
-			streamingToolLabel = null;
+			streamingToolSteps = [];
 			error = err instanceof Error ? err.message : 'An error occurred';
 		}
 	}
@@ -658,7 +690,7 @@
 		if (loading) return;
 		loadingConversation = true;
 		error = null;
-		streamingToolLabel = null;
+		streamingToolSteps = [];
 		pendingToolConfirmation = null;
 		editingUserId = null;
 		try {
@@ -684,7 +716,7 @@
 		activeChatId = null;
 		messages = [];
 		error = null;
-		streamingToolLabel = null;
+		streamingToolSteps = [];
 		pendingToolConfirmation = null;
 		editingUserId = null;
 	}
@@ -748,8 +780,7 @@
 		const idx = messages.findIndex((m) => m.id === message.id);
 		if (idx === -1) return;
 
-		const userBefore =
-			idx > 0 && messages[idx - 1]?.role === 'user' ? messages[idx - 1] : null;
+		const userBefore = idx > 0 && messages[idx - 1]?.role === 'user' ? messages[idx - 1] : null;
 		if (!userBefore) {
 			error = 'Cannot regenerate without a preceding user message.';
 			return;
@@ -818,9 +849,11 @@
 	async function copyMessage(message: ChatMessage) {
 		const text =
 			message.role === 'assistant' && message.assistantVariants?.length
-				? message.assistantVariants[
-						message.variantIndex !== undefined ? message.variantIndex : message.assistantVariants.length - 1
-					] ?? message.content
+				? (message.assistantVariants[
+						message.variantIndex !== undefined
+							? message.variantIndex
+							: message.assistantVariants.length - 1
+					] ?? message.content)
 				: message.content;
 		try {
 			await navigator.clipboard.writeText(text);
@@ -847,7 +880,7 @@
 			const role = m.role === 'user' ? 'User' : 'Assistant';
 			const body =
 				m.role === 'assistant' && m.assistantVariants?.length
-					? m.assistantVariants[m.variantIndex ?? m.assistantVariants.length - 1] ?? m.content
+					? (m.assistantVariants[m.variantIndex ?? m.assistantVariants.length - 1] ?? m.content)
 					: m.content;
 			lines.push(`### ${role}\n\n${body}\n`);
 		}
@@ -880,125 +913,142 @@
 	}
 </script>
 
-<section class="flex min-h-0 flex-1 flex-col">
-	<ChatToolbar
-		bind:maxHistoryMessages
-		onExportJson={exportJson}
-		onExportMarkdown={exportMarkdown}
-		disabled={loadingConversation}
-	/>
+<section class="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+	<div class="shrink-0 border-border/60">
+		<ChatToolbar
+			bind:maxHistoryMessages
+			onExportJson={exportJson}
+			onExportMarkdown={exportMarkdown}
+			disabled={loadingConversation}
+		/>
+	</div>
 
-	<ScrollArea
-		viewportRef={scrollEl}
-		viewportClass="chat-scroll"
-		class="flex min-h-0 flex-1 flex-col"
+	<div
+		bind:this={scrollEl}
+		class="flex-1 min-h-0 overflow-y-auto"
+		style="scrollbar-gutter: stable"
 	>
-		<div class="mx-auto flex h-full w-full max-w-3xl flex-col px-3 pt-4 pb-4 sm:px-4">
-			{#if loadingConversation}
-				<div class="flex flex-1 items-center justify-center">
-					<p class="text-sm text-muted-foreground">Loading agent…</p>
-				</div>
-			{:else if messages.length === 0}
-				<div
-					class="flex flex-1 flex-col items-center justify-center gap-3 px-2 py-12 text-center"
-				>
+		<div class="mx-auto flex min-h-full w-full max-w-3xl flex-col px-3 pt-4 pb-4 sm:px-4">
+				{#if loadingConversation}
+					<div class="flex flex-1 items-center justify-center">
+						<p class="text-sm text-muted-foreground">Loading agent…</p>
+					</div>
+				{:else if messages.length === 0}
 					<div
-						class="flex size-14 items-center justify-center rounded-2xl bg-muted/80 text-2xl shadow-inner ring-1 ring-border/50"
-						aria-hidden="true"
+						class="flex flex-1 flex-col items-center justify-center gap-3 px-2 py-12 text-center"
 					>
-						✦
-					</div>
-					<div class="max-w-sm space-y-1.5 text-muted-foreground">
-						<p class="text-base font-medium text-foreground">What can this agent help you with?</p>
-						<p class="text-sm leading-relaxed">
-							Give this agent a task to complete using the file index and ingested content.
-						</p>
-					</div>
-				</div>
-			{:else}
-				<div class="flex flex-col gap-6">
-					{#each messages as message (message.id)}
-						{#if editingUserId === message.id && message.role === 'user'}
-							<div class="flex justify-end">
-								<div
-									class="w-full max-w-[min(100%,42rem)] rounded-2xl border border-border bg-card p-3 shadow-sm"
-								>
-									<label class="sr-only" for="edit-user-msg">Edit message</label>
-									<textarea
-										id="edit-user-msg"
-										bind:value={editDraft}
-										rows="4"
-										class="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm"
-									></textarea>
-									<div class="mt-2 flex justify-end gap-2">
-										<Button type="button" variant="ghost" size="sm" onclick={cancelEdit}
-											>Cancel</Button
-										>
-										<Button
-											type="button"
-											size="sm"
-											disabled={loading || !editDraft.trim()}
-											onclick={() => commitEdit()}>Save & resend</Button
-										>
-									</div>
-								</div>
-							</div>
-						{:else}
-							<ChatMessageBubble
-								{message}
-								busy={loading}
-								onEdit={() => startEditUser(message)}
-								onRegenerate={() => regenerateAssistant(message)}
-								onCopy={() => copyMessage(message)}
-								onRetry={() => retryLastFailed(message)}
-								onVariantPrev={() => variantPrev(message)}
-								onVariantNext={() => variantNext(message)}
-							/>
-						{/if}
-					{/each}
-				</div>
-			{/if}
-
-			{#if streamingToolLabel}
-				<p class="mt-2 pl-1 text-xs text-muted-foreground">{streamingToolLabel}…</p>
-			{/if}
-
-			{#if loading && !streamingToolLabel}
-				<div class="mt-2 flex justify-start">
-					<div class="rounded-2xl bg-muted/70 px-4 py-3 ring-1 ring-border/40">
-						<div class="flex gap-1.5">
-							<span class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"></span>
-							<span
-								class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"
-								style="animation-delay: 0.12s"
-							></span>
-							<span
-								class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"
-								style="animation-delay: 0.24s"
-							></span>
+						<div
+							class="flex size-14 items-center justify-center rounded-2xl bg-muted/80 text-2xl shadow-inner ring-1 ring-border/50"
+							aria-hidden="true"
+						>
+							✦
+						</div>
+						<div class="max-w-sm space-y-1.5 text-muted-foreground">
+							<p class="text-base font-medium text-foreground">
+								What can this agent help you with?
+							</p>
+							<p class="text-sm leading-relaxed">
+								Give this agent a task to complete using the file index and ingested content.
+							</p>
 						</div>
 					</div>
-				</div>
-			{/if}
-
-			{#if error}
-				<div
-					class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
-				>
-					<div class="flex flex-wrap items-center justify-between gap-2">
-						<span>{error}</span>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							class="shrink-0"
-							onclick={() => (error = null)}>Dismiss</Button
-						>
+				{:else}
+					<div class="flex flex-col">
+						{#each messages as message (message.id)}
+							{#if editingUserId === message.id && message.role === 'user'}
+								<div class="w-full border-b border-border/70 py-5">
+									<div class="w-full border border-border bg-muted/20 p-3">
+										<label class="sr-only" for="edit-user-msg">Edit message</label>
+										<textarea
+											id="edit-user-msg"
+											bind:value={editDraft}
+											rows="4"
+											class="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm"
+										></textarea>
+										<div class="mt-2 flex justify-end gap-2">
+											<Button type="button" variant="ghost" size="sm" onclick={cancelEdit}
+												>Cancel</Button
+											>
+											<Button
+												type="button"
+												size="sm"
+												disabled={loading || !editDraft.trim()}
+												onclick={() => commitEdit()}>Save & resend</Button
+											>
+										</div>
+									</div>
+								</div>
+							{:else}
+								<ChatMessageBubble
+									{message}
+									busy={loading}
+									onEdit={() => startEditUser(message)}
+									onRegenerate={() => regenerateAssistant(message)}
+									onCopy={() => copyMessage(message)}
+									onRetry={() => retryLastFailed(message)}
+									onVariantPrev={() => variantPrev(message)}
+									onVariantNext={() => variantNext(message)}
+								/>
+							{/if}
+						{/each}
 					</div>
-				</div>
-			{/if}
-		</div>
-	</ScrollArea>
+				{/if}
+
+				{#if streamingToolSteps.length > 0}
+					<ul class="mt-2 space-y-1.5 pl-1" aria-live="polite" aria-label="Tool activity">
+						{#each streamingToolSteps as step, stepIndex (stepIndex)}
+							<li class="flex items-center gap-2 text-xs text-muted-foreground">
+								{#if step.done}
+									<span class="text-emerald-600 dark:text-emerald-400" aria-hidden="true">✓</span>
+								{:else}
+									<span
+										class="inline-block size-1.5 shrink-0 animate-pulse rounded-full bg-muted-foreground/70"
+										aria-hidden="true"
+									></span>
+								{/if}
+								<span>{step.label}…</span>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+
+				{#if loading && !streamingToolSteps.some((s) => !s.done)}
+					<div class="mt-2 flex w-full border-t border-border/60 pt-4">
+						<div class="flex w-full items-center gap-3 py-2">
+							<div class="flex gap-1.5">
+								<span class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"></span>
+								<span
+									class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"
+									style="animation-delay: 0.12s"
+								></span>
+								<span
+									class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"
+									style="animation-delay: 0.24s"
+								></span>
+							</div>
+							<span class="text-xs text-muted-foreground">Thinking…</span>
+						</div>
+					</div>
+				{/if}
+
+				{#if error}
+					<div
+						class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
+					>
+						<div class="flex flex-wrap items-center justify-between gap-2">
+							<span>{error}</span>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								class="shrink-0"
+								onclick={() => (error = null)}>Dismiss</Button
+							>
+						</div>
+					</div>
+				{/if}
+			</div>
+	</div>
 
 	{#if pendingToolConfirmation}
 		<div class="shrink-0 border-t border-border/60 bg-muted/25 px-3 py-3">
@@ -1006,7 +1056,7 @@
 				class="mx-auto max-w-3xl rounded-xl border border-amber-200/90 bg-amber-50/95 px-4 py-3 shadow-sm dark:border-amber-900/45 dark:bg-amber-950/35"
 			>
 				<p class="text-sm font-medium text-foreground">Confirm file action</p>
-				<p class="mt-1 break-all font-mono text-[11px] leading-relaxed text-muted-foreground">
+				<p class="mt-1 font-mono text-[11px] leading-relaxed break-all text-muted-foreground">
 					<span class="font-sans font-medium text-foreground/90"
 						>{actionTitleForTool(pendingToolConfirmation.tool)}</span
 					>
@@ -1035,14 +1085,12 @@
 		</div>
 	{/if}
 
-	<div class="bg-background px-3 py-3">
-		<ChatComposer bind:value={input} disabled={loading || loadingConversation} onSubmit={sendMessage} />
+	<div class="shrink-0 border-t border-border/60 bg-background px-3 py-3">
+		<ChatComposer
+			bind:value={input}
+			disabled={loading || loadingConversation}
+			onSubmit={sendMessage}
+		/>
 	</div>
 </section>
 
-<style>
-	:global(.chat-scroll) {
-		scrollbar-gutter: stable;
-		overflow-y: auto;
-	}
-</style>

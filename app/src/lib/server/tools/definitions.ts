@@ -15,7 +15,7 @@ export const ASK_TOOLS: LlmToolDefinition[] = [
 	{
 		type: 'function',
 		function: {
-			name: 'search_files',
+			name: 'search',
 			description: 'Semantic search across indexed files in the workspace.',
 			parameters: {
 				type: 'object',

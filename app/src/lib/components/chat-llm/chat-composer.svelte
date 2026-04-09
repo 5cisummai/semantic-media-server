@@ -1,6 +1,5 @@
 <script lang="ts">
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
-	import { tick } from 'svelte';
 
 	let {
 		value = $bindable(''),
@@ -24,9 +23,11 @@
 		el.style.height = `${next}px`;
 	}
 
+	// Resize whenever the value changes. $effect runs after DOM updates,
+	// so the textarea element is already rendered when this fires.
 	$effect(() => {
 		void value;
-		void tick().then(() => resizeComposer());
+		resizeComposer();
 	});
 </script>
 
@@ -37,7 +38,7 @@
 	}}
 	class="mx-auto w-full max-w-3xl"
 >
-	<div class="flex items-end gap-2 rounded-xl border bg-background px-3 py-2">
+	<div class="flex items-end gap-2 border-t border-border bg-background pt-3">
 		<textarea
 			bind:this={textareaEl}
 			bind:value
@@ -51,7 +52,7 @@
 			{placeholder}
 			rows="1"
 			{disabled}
-			class="flex-1 resize-none bg-card/70 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
+			class="flex-1 resize-none text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
 		></textarea>
 
 		<button

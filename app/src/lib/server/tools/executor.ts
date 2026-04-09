@@ -83,7 +83,7 @@ async function runSearchFiles(rawArgs: Record<string, unknown>): Promise<string>
 		minScore: asNumber(rawArgs.minScore)
 	};
 
-	if (!args.query.trim()) return 'Error: search_files requires a non-empty "query" string.';
+	if (!args.query.trim()) return 'Error: search requires a non-empty "query" string.';
 
 	const results = await semanticSearch(args.query, {
 		mediaType: args.mediaType,
@@ -281,7 +281,7 @@ export async function executeTool(
 ): Promise<string> {
 	try {
 		switch (name) {
-			case 'search_files':
+			case 'search':
 				return await runSearchFiles(args);
 			case 'list_directory':
 				return await runListDirectory(args);

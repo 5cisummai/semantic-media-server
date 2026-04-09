@@ -3,12 +3,15 @@
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	let { children, data } = $props();
 
-	let { children } = $props();
+	// Cookie-backed default for SSR/hydration; toggles update via bind:open + cookie.
+	// svelte-ignore state_referenced_locally
+	let sidebarOpen = $state(data.sidebarOpen);
 </script>
 
 <div class="min-h-screen w-full bg-background text-foreground">
-	<Sidebar.Provider class="min-h-[calc(100svh-4.25rem)]">
+	<Sidebar.Provider class="min-h-[calc(100svh-4.25rem)]" bind:open={sidebarOpen}>
 		<AppSidebar />
 
 		<div class="relative flex min-h-[calc(100svh-4.25rem)] w-full flex-col">

@@ -13,6 +13,7 @@ import { executeTool } from '$lib/server/tools/executor';
 import { streamText } from '$lib/server/services/llm';
 import type { MediaType } from '$lib/server/services/storage';
 import {
+	appendRunToolStreamEvent,
 	createBackgroundRun,
 	markRunAwaitingConfirmation,
 	markRunDone,
@@ -111,7 +112,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				const outcome = await runBrainAgentLoop(bodyForAgent, {
 					userId: user.id,
 					chatId: taken.chatSessionId,
-					toolExec
+					toolExec,
+					onToolEvent: (event) => {
+						appendRunToolStreamEvent(run.id, { type: event.type, tool: event.tool });
+					}
 				});
 
 				if (outcome.kind === 'pending_confirmation') {

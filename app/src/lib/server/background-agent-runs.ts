@@ -14,6 +14,12 @@ export interface RunPendingConfirmation {
 	chatId: string;
 }
 
+/** Serializable tool stream entries for UI (see brain-agent-loop ToolStreamEvent). */
+export type BackgroundToolStreamEntry = {
+	type: 'tool_start' | 'tool_done';
+	tool: string;
+};
+
 export interface BackgroundRunRecord {
 	id: string;
 	userId: string;
@@ -22,6 +28,8 @@ export interface BackgroundRunRecord {
 	status: BackgroundRunStatus;
 	error?: string;
 	pendingToolConfirmation?: RunPendingConfirmation;
+	/** Ordered tool_start / tool_done pairs for live status while the run is in progress. */
+	toolStreamLog?: BackgroundToolStreamEntry[];
 	createdAt: number;
 	updatedAt: number;
 }
@@ -70,7 +78,22 @@ export function createBackgroundRun(
 }
 
 export function markRunRunning(runId: string): BackgroundRunRecord | null {
-	return updateRun(runId, (run) => ({ ...run, status: 'running', error: undefined }));
+	return updateRun(runId, (run) => ({
+		...run,
+		status: 'running',
+		error: undefined,
+		toolStreamLog: []
+	}));
+}
+
+export function appendRunToolStreamEvent(
+	runId: string,
+	entry: BackgroundToolStreamEntry
+): BackgroundRunRecord | null {
+	return updateRun(runId, (run) => ({
+		...run,
+		toolStreamLog: [...(run.toolStreamLog ?? []), entry]
+	}));
 }
 
 export function markRunAwaitingConfirmation(

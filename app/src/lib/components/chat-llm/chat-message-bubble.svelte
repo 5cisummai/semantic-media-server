@@ -53,7 +53,7 @@
 	);
 	const showVariants = $derived(variantCount > 1);
 
-	function onUserBubbleClick(e: MouseEvent) {
+	function onUserBlockClick(e: MouseEvent) {
 		if (message.role !== 'user' || busy) return;
 		const sel = typeof window !== 'undefined' ? window.getSelection() : null;
 		if (sel?.toString().trim()) return;
@@ -64,49 +64,36 @@
 </script>
 
 <div
-	class="flex w-full gap-3 {message.role === 'user' ? 'justify-end' : 'justify-start'}"
+	class="w-full border-b border-border/70 py-5 last:border-b-0"
 	data-message-id={message.id}
 >
-	<div
-		class="flex max-w-[min(100%,42rem)] flex-col {message.role === 'user'
-			? 'items-end'
-			: 'items-start'}"
-	>
+	<div class="flex w-full flex-col gap-2">
+		<div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+			<span class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+				{message.role === 'user' ? 'You' : 'Assistant'}
+			</span>
+			{#if message.role === 'user' && message.editedFrom}
+				<span class="text-[10px] font-medium uppercase text-muted-foreground">Edited</span>
+			{/if}
+			{#if message.role === 'assistant' && message.model}
+				<span class="text-[11px] text-muted-foreground">· {message.model}</span>
+			{/if}
+		</div>
+
 		<div
-			class="w-full rounded-2xl shadow-sm {message.role === 'user'
-				? 'bg-primary text-primary-foreground'
-				: 'bg-muted/70 ring-1 ring-border/40'}"
+			class="border-l-2 pl-3 {message.role === 'user'
+				? 'border-primary/50'
+				: 'border-border'}"
 		>
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="px-4 py-3 text-[15px] leading-relaxed {message.role === 'user' && !busy
-					? 'cursor-pointer'
-					: ''}"
+				class="text-[15px] leading-relaxed {message.role === 'user' && !busy ? 'cursor-pointer' : ''}"
 				title={message.role === 'user' && !busy ? 'Click to edit' : undefined}
-				onclick={message.role === 'user' ? onUserBubbleClick : undefined}
+				onclick={message.role === 'user' ? onUserBlockClick : undefined}
 			>
-				{#if message.role === 'user' && message.editedFrom}
-					<p
-						class="mb-2 text-[10px] font-medium tracking-wide uppercase opacity-80 {message.role ===
-						'user'
-							? 'text-primary-foreground/80'
-							: ''}"
-					>
-						Edited
-					</p>
-				{/if}
-				{#if message.role === 'assistant' && message.model}
-					<p class="mb-2 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-						{message.model}
-					</p>
-				{/if}
-
 				<div
-					class="prose prose-sm dark:prose-invert prose-p:my-2 prose-p:first:mt-0 prose-p:last:mb-0 max-w-none {message.role ===
-					'user'
-						? 'prose-invert'
-						: ''}"
+					class="prose prose-sm dark:prose-invert prose-p:my-2 prose-p:first:mt-0 prose-p:last:mb-0 max-w-none"
 				>
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 					{@html displayHtml}
@@ -114,17 +101,14 @@
 
 				{#if message.sources && message.sources.length > 0}
 					<div
-						class="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-white/20 pt-3 dark:border-border/60 {message.role ===
-						'user'
-							? 'border-white/25'
-							: ''}"
+						class="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-border/60 pt-3"
 					>
-						<span class="shrink-0 text-[10px] font-medium tracking-wide uppercase opacity-80">
+						<span class="shrink-0 text-[10px] font-medium tracking-wide uppercase text-muted-foreground">
 							Sources
 						</span>
 						{#each message.sources as source (source.fileId)}
 							<span
-								class="max-w-full truncate rounded-md bg-background/15 px-1.5 py-0 text-[10px] leading-tight opacity-90 ring-1 ring-white/20 dark:bg-background/40 dark:ring-border/50"
+								class="max-w-full truncate rounded border border-border/80 bg-muted/40 px-1.5 py-0.5 text-[10px] leading-tight text-foreground/90"
 								title={source.filePath}
 							>
 								{source.filePath}
@@ -138,12 +122,7 @@
 				{/if}
 
 				{#if showVariants}
-					<div
-						class="mt-3 flex items-center justify-between gap-2 border-t border-border/40 pt-2 {message.role ===
-						'user'
-							? 'border-white/20'
-							: ''}"
-					>
+					<div class="mt-3 flex items-center justify-between gap-2 border-t border-border/50 pt-2">
 						<span class="text-[10px] text-muted-foreground">Versions</span>
 						<div class="flex items-center gap-1">
 							<Button
@@ -179,7 +158,7 @@
 		</div>
 
 		{#if message.role === 'user'}
-			<div class="mt-1.5 flex items-center justify-end gap-0.5 pr-0.5">
+			<div class="mt-2 flex items-center gap-0.5 pl-[calc(0.5rem+2px)]">
 				<Button
 					type="button"
 					variant="ghost"
@@ -192,7 +171,7 @@
 				</Button>
 			</div>
 		{:else}
-			<div class="mt-1.5 flex flex-wrap items-center gap-0.5 pl-0.5">
+			<div class="mt-2 flex flex-wrap items-center gap-0.5 pl-[calc(0.5rem+2px)]">
 				<Button
 					type="button"
 					variant="ghost"
