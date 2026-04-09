@@ -2,6 +2,7 @@
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import Settings2Icon from '@lucide/svelte/icons/settings-2';
 	import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
+	import SquareIcon from '@lucide/svelte/icons/square';
 	import { Button } from '$lib/components/ui/button';
 	import {
 		Popover,
@@ -16,11 +17,15 @@
 		maxHistoryMessages = $bindable(40),
 		onExportJson,
 		onExportMarkdown,
+		onStopAgent,
+		showStop = false,
 		disabled = false
 	}: {
 		maxHistoryMessages?: number;
 		onExportJson?: () => void;
 		onExportMarkdown?: () => void;
+		onStopAgent?: () => void;
+		showStop?: boolean;
 		disabled?: boolean;
 	} = $props();
 
@@ -32,6 +37,19 @@
 <div
 	class="flex flex-wrap items-center justify-end gap-2 border-border/50 px-3 py-2 text-xs text-muted-foreground"
 >
+	{#if showStop}
+		<Button
+			type="button"
+			variant="outline"
+			size="sm"
+			class="h-8 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+			aria-label="Stop agent"
+			onclick={() => onStopAgent?.()}
+		>
+			<SquareIcon class="size-3.5 fill-current" />
+			<span class="hidden sm:inline">Stop</span>
+		</Button>
+	{/if}
 	<Popover bind:open={optionsOpen}>
 		<PopoverTrigger class="inline-flex" aria-label="Chat options">
 			<Button type="button" variant="ghost" size="sm" class="h-8 gap-1.5" {disabled}>

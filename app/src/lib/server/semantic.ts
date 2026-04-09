@@ -49,6 +49,28 @@ function buildMetadataText(entry: MediaEntry): string {
 	return parts.join(' | ');
 }
 
+function isSvgFile(entry: MediaEntry): boolean {
+	return path.extname(entry.name).toLowerCase() === '.svg';
+}
+
+function resolveSvgEmbedMaxChars(): number {
+	const parsed = Number.parseInt(env.SEMANTIC_SVG_EMBED_CHARS ?? '12000', 10);
+	if (!Number.isFinite(parsed) || parsed < 2048) return 12_000;
+	return Math.min(parsed, 100_000);
+}
+
+/** SVG is XML, not a raster — embed UTF-8 source (labels, text, ids) instead of multimodal image bytes. */
+async function readSvgTextForEmbedding(entry: MediaEntry): Promise<string> {
+	const max = resolveSvgEmbedMaxChars();
+	try {
+		const raw = await fs.readFile(entry.fullPath, 'utf8');
+		if (raw.length <= max) return raw;
+		return `${raw.slice(0, max)}\n...[truncated ${raw.length - max} characters]`;
+	} catch {
+		return '';
+	}
+}
+
 function resolveReindexConcurrency(): number {
 	const candidate = Number.parseInt(env.EMBEDDING_REINDEX_CONCURRENCY ?? String(DEFAULT_REINDEX_CONCURRENCY), 10);
 
@@ -311,18 +333,39 @@ function rootIndexFromPath(relativePath: string): number {
 
 async function makePoint(entry: MediaEntry): Promise<{ point: BrainPoint; usedImageEmbedding: boolean }> {
 	const metadataText = buildMetadataText(entry);
-	let vector = (await embedText(metadataText)).vector;
+	let vector: number[];
 	let usedImageEmbedding = false;
 
-	if (entry.mediaType === 'image') {
-		try {
-			const maybeImageVector = await embedImage(entry.fullPath);
-			if (maybeImageVector) {
-				vector = maybeImageVector;
-				usedImageEmbedding = true;
+	if (isSvgFile(entry)) {
+		const svgBody = await readSvgTextForEmbedding(entry);
+		const textForEmbed = svgBody
+			? `${metadataText}\n--- svg source ---\n${svgBody}`
+			: metadataText;
+		vector = (await embedText(textForEmbed)).vector;
+	} else {
+		vector = (await embedText(metadataText)).vector;
+
+		if (entry.mediaType === 'image') {
+			try {
+				const maybeImageVector = await embedImage(entry.fullPath);
+				if (maybeImageVector) {
+					vector = maybeImageVector;
+					usedImageEmbedding = true;
+				}
+			} catch (err) {
+				const ext = path.extname(entry.name).toLowerCase();
+				console.warn(
+					'Image embedding failed, falling back to metadata embedding:',
+					{
+						path: entry.path,
+						ext: ext || '(no ext)',
+						mimeType: entry.mimeType ?? null,
+						mediaType: entry.mediaType,
+						sizeBytes: entry.size
+					},
+					err
+				);
 			}
-		} catch (err) {
-			console.warn('Image embedding failed, falling back to metadata embedding:', err);
 		}
 	}
 

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
 import os
 import threading
 from typing import Any, Optional
+
+logger = logging.getLogger("embedding_host")
 
 import torch
 from fastapi import FastAPI, HTTPException
@@ -169,7 +172,9 @@ def _safe_resize_image(image: Image.Image) -> Image.Image:
     return image
 
 
-def _decode_image(base64_value: str) -> Image.Image:
+def _decode_image(base64_value: str, filename: Optional[str] = None) -> Image.Image:
+    fn = filename or "(unknown)"
+    raw: Optional[bytes] = None
     try:
         raw = base64.b64decode(base64_value)
         img = Image.open(io.BytesIO(raw))
@@ -177,6 +182,14 @@ def _decode_image(base64_value: str) -> Image.Image:
     except HTTPException:
         raise
     except Exception as exc:
+        logger.warning(
+            "image_decode_failed filename=%s raw_bytes=%s b64_len=%s err=%s",
+            fn,
+            len(raw) if raw is not None else None,
+            len(base64_value),
+            exc,
+            exc_info=logger.isEnabledFor(logging.DEBUG),
+        )
         raise HTTPException(status_code=400, detail=f"Invalid imageBase64: {exc}") from exc
 
 
@@ -277,14 +290,24 @@ def embed(payload: EmbedRequest) -> EmbedResponse:
 
     if payload.type == "text":
         if not payload.text or not payload.text.strip():
+            logger.warning("embed_reject_empty_text model=%s", payload.model)
             raise HTTPException(status_code=400, detail="text is required when type=text")
         embedding = _embed_text(payload.text.strip(), payload.instruction)
         return EmbedResponse(embedding=embedding)
 
     if payload.type == "image":
         if not payload.imageBase64:
+            logger.warning(
+                "embed_reject_missing_imageBase64 filename=%s", payload.filename or "(unknown)"
+            )
             raise HTTPException(status_code=400, detail="imageBase64 is required when type=image")
-        image = _decode_image(payload.imageBase64)
+        logger.debug(
+            "embed_image filename=%s b64_len=%s model=%s",
+            payload.filename or "(unknown)",
+            len(payload.imageBase64),
+            payload.model,
+        )
+        image = _decode_image(payload.imageBase64, payload.filename)
         embedding = _embed_image(image)
         return EmbedResponse(embedding=embedding)
 

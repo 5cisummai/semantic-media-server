@@ -54,7 +54,34 @@ async function embedWithMultimodal(input: {
 	});
 
 	if (!response.ok) {
-		throw new Error(`Multimodal embedding request failed: ${response.status} ${response.statusText}`);
+		let detail = '';
+		try {
+			const text = await response.text();
+			if (text) {
+				try {
+					const parsed = JSON.parse(text) as { detail?: unknown };
+					detail =
+						typeof parsed.detail === 'string'
+							? parsed.detail
+							: JSON.stringify(parsed.detail ?? parsed);
+				} catch {
+					detail = text.length > 800 ? `${text.slice(0, 800)}…` : text;
+				}
+			}
+		} catch {
+			/* ignore body read errors */
+		}
+		const kind = input.type === 'image' ? 'image' : 'text';
+		const filename = input.filename ?? '(no filename)';
+		const extra =
+			input.type === 'image' && input.imageBase64
+				? ` base64Length=${input.imageBase64.length}`
+				: input.type === 'text' && input.text
+					? ` textLength=${input.text.length}`
+					: '';
+		throw new Error(
+			`Multimodal embedding request failed: ${response.status} ${response.statusText} (${kind}, ${filename})${extra}${detail ? ` — ${detail}` : ''}`
+		);
 	}
 
 	const body = (await response.json()) as { embedding?: number[] };

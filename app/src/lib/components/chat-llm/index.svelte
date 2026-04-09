@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { apiFetch } from '$lib/api-fetch';
+	import {
+		addAutoApproveToolName,
+		getAutoApproveToolNames
+	} from '$lib/agent-auto-approve';
 	import { Button } from '$lib/components/ui/button';
 	import ChatMessageBubble from './chat-message-bubble.svelte';
 	import ChatComposer from './chat-composer.svelte';
@@ -40,8 +44,17 @@
 	let pendingScrollMessageId = $state<string | null>(null);
 	let backgroundRunId = $state<string | null>(null);
 	let backgroundPollTimer: ReturnType<typeof setTimeout> | null = null;
+	/** Aborts in-flight ask/confirm HTTP and background status polls for the current run. */
+	let agentRunAbortController: AbortController | null = null;
 
 	const SUBMIT_DEBOUNCE_MS = 400;
+
+	function isAbortError(err: unknown): boolean {
+		return (
+			(err instanceof DOMException && err.name === 'AbortError') ||
+			(err instanceof Error && err.name === 'AbortError')
+		);
+	}
 
 	type PendingMeta = {
 		chatId?: string;
@@ -117,11 +130,19 @@
 		const map: Record<string, string> = {
 			delete_file: 'Delete',
 			move_file: 'Move',
+			move_files: 'Move (batch)',
 			copy_file: 'Copy',
 			mkdir: 'Create folder'
 		};
 		return map[name] ?? name;
 	}
+
+	let autoApproveThisKind = $state(false);
+
+	$effect(() => {
+		void pendingToolConfirmation?.pendingId;
+		autoApproveThisKind = false;
+	});
 
 	function summarizeToolArgs(tool: string, args: Record<string, unknown>): string {
 		try {
@@ -184,6 +205,16 @@
 		}
 	}
 
+	function stopAgent() {
+		agentRunAbortController?.abort();
+		agentRunAbortController = null;
+		clearBackgroundPolling();
+		backgroundRunId = null;
+		loading = false;
+		streamingToolSteps = [];
+		activeAgentStatus = 'done';
+	}
+
 	function scheduleBackgroundPoll(runId: string) {
 		clearBackgroundPolling();
 		backgroundPollTimer = setTimeout(() => {
@@ -215,13 +246,17 @@
 		const payload = (await response.json()) as { run?: BackgroundRunPayload | null };
 		const run = payload.run;
 		if (!run || !run.id) return;
+		agentRunAbortController?.abort();
+		agentRunAbortController = new AbortController();
 		await beginBackgroundRunTracking(run.id, run.chatId, run.toolStreamLog);
 	}
 
 	async function pollBackgroundRun(runId: string) {
 		if (!runId || runId !== backgroundRunId) return;
 		try {
-			const response = await apiFetch(`/api/brain/runs/${encodeURIComponent(runId)}`);
+			const response = await apiFetch(`/api/brain/runs/${encodeURIComponent(runId)}`, {
+				signal: agentRunAbortController?.signal
+			});
 			if (!response.ok) {
 				throw new Error(`Run status failed (${response.status})`);
 			}
@@ -239,6 +274,7 @@
 			clearBackgroundPolling();
 			streamingToolSteps = [];
 			loading = false;
+			agentRunAbortController = null;
 
 			if (run.status === 'awaiting_confirmation' && run.pendingToolConfirmation) {
 				pendingToolConfirmation = run.pendingToolConfirmation;
@@ -265,12 +301,14 @@
 			}
 		} catch (err) {
 			if (runId !== backgroundRunId) return;
+			if (isAbortError(err)) return;
 			error = err instanceof Error ? err.message : 'Background run status failed';
 			loading = false;
 			activeAgentStatus = 'done';
 			streamingToolSteps = [];
 			clearBackgroundPolling();
 			backgroundRunId = null;
+			agentRunAbortController = null;
 		}
 	}
 
@@ -549,6 +587,10 @@
 		streamingToolSteps = [];
 		pendingToolConfirmation = null;
 
+		agentRunAbortController?.abort();
+		agentRunAbortController = new AbortController();
+		const signal = agentRunAbortController.signal;
+
 		try {
 			const response = await apiFetch('/api/brain/ask', {
 				method: 'POST',
@@ -559,8 +601,10 @@
 					background: true,
 					filters: { limit: 16 },
 					regenerate: options.regenerate === true,
-					maxHistoryMessages: maxHistoryMessages
-				})
+					maxHistoryMessages: maxHistoryMessages,
+					autoApproveToolNames: getAutoApproveToolNames()
+				}),
+				signal
 			});
 
 			if (!response.ok) {
@@ -581,9 +625,17 @@
 			await beginBackgroundRunTracking(payload.runId, payload.chatId);
 			onListRefresh?.();
 		} catch (err) {
+			if (isAbortError(err)) {
+				loading = false;
+				activeAgentStatus = 'done';
+				streamingToolSteps = [];
+				agentRunAbortController = null;
+				return;
+			}
 			loading = false;
 			activeAgentStatus = 'done';
 			streamingToolSteps = [];
+			agentRunAbortController = null;
 			const msg = err instanceof Error ? err.message : 'An error occurred';
 			error = msg;
 		}
@@ -609,15 +661,24 @@
 		await sendAsk({ question: text, regenerate: false });
 	}
 
-	async function submitToolConfirmation(approved: boolean) {
+	async function submitToolConfirmation(approved: boolean, rememberAutoApprove?: boolean) {
 		const pending = pendingToolConfirmation;
 		if (!pending || loading) return;
+
+		if (approved && rememberAutoApprove) {
+			addAutoApproveToolName(pending.tool);
+		}
+		const autoApproveToolNames = getAutoApproveToolNames();
 
 		loading = true;
 		activeAgentStatus = 'working';
 		error = null;
 		streamingToolSteps = [];
 		pendingToolConfirmation = null;
+
+		agentRunAbortController?.abort();
+		agentRunAbortController = new AbortController();
+		const signal = agentRunAbortController.signal;
 
 		try {
 			const response = await apiFetch('/api/brain/ask/confirm', {
@@ -627,8 +688,10 @@
 					pendingId: pending.pendingId,
 					approved,
 					chatId: pending.chatId,
-					background: true
-				})
+					background: true,
+					autoApproveToolNames
+				}),
+				signal
 			});
 
 			if (!response.ok) {
@@ -649,9 +712,17 @@
 			await beginBackgroundRunTracking(payload.runId, payload.chatId);
 			onListRefresh?.();
 		} catch (err) {
+			if (isAbortError(err)) {
+				loading = false;
+				activeAgentStatus = 'done';
+				streamingToolSteps = [];
+				agentRunAbortController = null;
+				return;
+			}
 			loading = false;
 			activeAgentStatus = 'done';
 			streamingToolSteps = [];
+			agentRunAbortController = null;
 			error = err instanceof Error ? err.message : 'An error occurred';
 		}
 	}
@@ -724,6 +795,8 @@
 	$effect(() => {
 		return () => {
 			clearBackgroundPolling();
+			agentRunAbortController?.abort();
+			agentRunAbortController = null;
 		};
 	});
 
@@ -919,6 +992,8 @@
 			bind:maxHistoryMessages
 			onExportJson={exportJson}
 			onExportMarkdown={exportMarkdown}
+			showStop={loading}
+			onStopAgent={stopAgent}
 			disabled={loadingConversation}
 		/>
 	</div>
@@ -1062,12 +1137,27 @@
 					>
 					· {summarizeToolArgs(pendingToolConfirmation.tool, pendingToolConfirmation.args)}
 				</p>
+				<label class="mt-3 flex cursor-pointer items-start gap-2.5 text-xs leading-snug text-muted-foreground">
+					<input
+						type="checkbox"
+						class="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border border-amber-300/90 accent-amber-600 dark:border-amber-800"
+						bind:checked={autoApproveThisKind}
+						disabled={loading}
+					/>
+					<span>
+						Auto-approve future
+						<span class="font-medium text-foreground/90"
+							>{actionTitleForTool(pendingToolConfirmation.tool)}</span
+						>
+						actions in this browser (skip this prompt next time)
+					</span>
+				</label>
 				<div class="mt-3 flex flex-wrap gap-2">
 					<Button
 						type="button"
 						size="sm"
 						disabled={loading}
-						onclick={() => submitToolConfirmation(true)}
+						onclick={() => submitToolConfirmation(true, autoApproveThisKind)}
 					>
 						Approve
 					</Button>

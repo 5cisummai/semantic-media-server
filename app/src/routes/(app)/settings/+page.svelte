@@ -11,6 +11,13 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import FolderInputIcon from '@lucide/svelte/icons/folder-input';
+	import SparklesIcon from '@lucide/svelte/icons/sparkles';
+	import {
+		AUTO_APPROVE_SETTINGS,
+		isAutoApproveSettingEnabled,
+		setAutoApproveSettingEnabled,
+		type AutoApproveSettingId
+	} from '$lib/agent-auto-approve';
 
 	interface DriveInfo {
 		index: number;
@@ -54,6 +61,24 @@
 	let ingestingRoot = $state<number | null>(null);
 	let ingestStatus = $state<'idle' | 'success' | 'error'>('idle');
 	let ingestMessage = $state<string | null>(null);
+
+	let settingsTab = $state('storage');
+
+	let agentAutoApprove = $state<Record<AutoApproveSettingId, boolean>>({
+		delete_file: false,
+		move: false,
+		copy_file: false,
+		mkdir: false
+	});
+
+	function syncAgentAutoApproveFromStorage() {
+		agentAutoApprove = {
+			delete_file: isAutoApproveSettingEnabled('delete_file'),
+			move: isAutoApproveSettingEnabled('move'),
+			copy_file: isAutoApproveSettingEnabled('copy_file'),
+			mkdir: isAutoApproveSettingEnabled('mkdir')
+		};
+	}
 
 	async function loadData() {
 		if (!browser) return;
@@ -175,8 +200,16 @@
 	}
 
 	if (browser) {
+		syncAgentAutoApproveFromStorage();
 		loadData();
 	}
+
+	$effect(() => {
+		if (!browser) return;
+		if (settingsTab === 'assistant') {
+			syncAgentAutoApproveFromStorage();
+		}
+	});
 </script>
 
 <div class="min-h-full bg-background text-foreground p-4 sm:p-6">
@@ -189,11 +222,15 @@
 			</p>
 		</section>
 
-		<Tabs.Root value="storage">
-			<Tabs.List class="grid w-full max-w-md grid-cols-3">
+		<Tabs.Root bind:value={settingsTab}>
+			<Tabs.List class="grid w-full max-w-2xl grid-cols-2 gap-1 sm:grid-cols-4">
 				<Tabs.Trigger value="storage" class="gap-2">
 					<FolderIcon class="size-4" />
 					Storage
+				</Tabs.Trigger>
+				<Tabs.Trigger value="assistant" class="gap-2">
+					<SparklesIcon class="size-4" />
+					Assistant
 				</Tabs.Trigger>
 				<Tabs.Trigger value="users" class="gap-2">
 					<UsersIcon class="size-4" />
@@ -308,6 +345,41 @@
 							Only administrators can reindex or ingest content for search and chat.
 						</p>
 					{/if}
+				</div>
+			</Tabs.Content>
+
+			<Tabs.Content value="assistant" class="space-y-4">
+				<div class="rounded-md border border-border p-4">
+					<h3 class="text-sm font-medium mb-1">AI assistant — file actions</h3>
+					<p class="text-sm text-muted-foreground mb-4">
+						When the chat assistant wants to change files (delete, move, copy, or create folders), it
+						normally asks for confirmation. You can auto-approve specific action types so they run
+						without a prompt. Preferences are stored in this browser only.
+					</p>
+					<ul class="flex flex-col gap-3">
+						{#each AUTO_APPROVE_SETTINGS as opt (opt.id)}
+							<li>
+								<label
+									class="flex cursor-pointer items-start gap-3 rounded-md border border-transparent p-2 hover:bg-muted/50 has-focus-visible:ring-2 has-focus-visible:ring-ring"
+								>
+									<input
+										type="checkbox"
+										class="mt-0.5 size-4 shrink-0 rounded border border-input accent-primary"
+										checked={agentAutoApprove[opt.id]}
+										onchange={(e) => {
+											const on = e.currentTarget.checked;
+											setAutoApproveSettingEnabled(opt.id, on);
+											agentAutoApprove = { ...agentAutoApprove, [opt.id]: on };
+										}}
+									/>
+									<span class="min-w-0">
+										<span class="block text-sm font-medium text-foreground">{opt.label}</span>
+										<span class="block text-xs text-muted-foreground">{opt.description}</span>
+									</span>
+								</label>
+							</li>
+						{/each}
+					</ul>
 				</div>
 			</Tabs.Content>
 

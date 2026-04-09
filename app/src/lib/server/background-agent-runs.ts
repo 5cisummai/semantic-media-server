@@ -57,6 +57,30 @@ function updateRun(
 	return next;
 }
 
+/**
+ * When a continuation run starts after the user confirms a tool, the previous run is left in
+ * `awaiting_confirmation` unless we clear it. Otherwise getActiveBackgroundRunForChat can return
+ * that stale row (pendingId already deleted from DB) and the UI shows a ghost prompt + 404 on approve.
+ */
+export function supersedeOtherRunsForChat(
+	userId: string,
+	chatId: string,
+	keepRunId: string
+): void {
+	const now = Date.now();
+	for (const [id, run] of runs.entries()) {
+		if (id === keepRunId) continue;
+		if (run.userId !== userId || run.chatId !== chatId) continue;
+		if (run.status === 'done' || run.status === 'failed') continue;
+		runs.set(id, {
+			...run,
+			status: 'done',
+			pendingToolConfirmation: undefined,
+			updatedAt: now
+		});
+	}
+}
+
 export function createBackgroundRun(
 	userId: string,
 	chatId: string,

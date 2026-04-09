@@ -330,7 +330,7 @@ Each **SearchResult** item:
 
 **Auth**: Required.
 
-Runs a **server-side agent loop** (up to 5 iterations) with tool calling (`search_files`, `list_directory`, `get_file_info`, `read_file`, `search_by_metadata`). The same pipeline runs for both JSON and streaming modes.
+Runs a **server-side agent loop** (up to 20 iterations) with tool calling (`search_files`, `list_directory`, `get_file_info`, `read_file`, `search_by_metadata`). The same pipeline runs for both JSON and streaming modes.
 
 **Body**:
 
