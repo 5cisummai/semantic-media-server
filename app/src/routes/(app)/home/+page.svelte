@@ -6,7 +6,6 @@
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import BotIcon from '@lucide/svelte/icons/bot';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
-	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import FilesIcon from '@lucide/svelte/icons/files';
 	import { Button } from '$lib/components/ui/button';
 	import { Textarea } from '$lib/components/ui/textarea';
@@ -14,6 +13,7 @@
 	import { agentSessions } from '$lib/hooks/agent-sessions.svelte';
 	import type { FileEntry } from '$lib/components/file-browser/file-grid.svelte';
 	import FilePreviewTile from '$lib/components/file-browser/file-preview-tile.svelte';
+	import AgentStatusItem from '$lib/components/agent-status-item.svelte';
 
 	const username = $derived(($page.data.user as { username?: string } | undefined)?.username ?? '');
 
@@ -94,13 +94,8 @@
 		return `${Math.floor(diff / day)}d ago`;
 	}
 
-	function openAgent(id: string) {
-		// eslint-disable-next-line svelte/no-navigation-without-resolve
-		goto(`/chat?agent=${encodeURIComponent(id)}`);
-	}
-
 	function openNewAgent() {
-		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		// eslint-disable-next-line svelte/no-navigation-without-restore
 		goto(`/chat`);
 	}
 
@@ -270,39 +265,15 @@
 					</Card.Content>
 				</Card.Root>
 			{:else}
-				<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+				<div class="flex flex-col divide-y divide-border rounded-xl border">
 					{#each agents.slice(0, 6) as agent (agent.id)}
-						{@const isWorking = agentSessions.getStatus(agent.id) === 'working'}
-						<button
-							type="button"
-							onclick={() => openAgent(agent.id)}
-							class="group flex flex-col gap-2 rounded-xl border bg-card p-4 text-left transition-colors hover:border-foreground/20 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {isWorking ? 'border-amber-400/40 dark:border-amber-500/30' : 'border-border'}"
-						>
-							<div class="flex items-start justify-between gap-2">
-								<p class="line-clamp-2 flex-1 text-sm font-medium leading-snug">{agent.title}</p>
-								<div class="mt-0.5 shrink-0">
-									{#if isWorking}
-										<LoaderIcon class="size-3.5 animate-spin text-amber-500" />
-									{:else}
-										<!-- green ready dot -->
-										<span class="relative flex size-2.5">
-											<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60 duration-1000"></span>
-											<span class="relative inline-flex size-2.5 rounded-full bg-green-500"></span>
-										</span>
-									{/if}
-								</div>
-							</div>
-							<div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-								{#if isWorking}
-									<span class="font-medium text-amber-600 dark:text-amber-400">In progress</span>
-									<span>·</span>
-								{/if}
-								<MessageSquareIcon class="size-3" />
-								<span>{agent.messageCount}</span>
-								<span>·</span>
-								<span>{relativeTimestamp(agent.updatedAt)}</span>
-							</div>
-						</button>
+						<AgentStatusItem
+							chatId={agent.id}
+							name={agent.title || 'Agent session'}
+							description="{agent.messageCount} message{agent.messageCount === 1 ? '' : 's'} · {relativeTimestamp(agent.updatedAt)}"
+							href="/chat?agent={encodeURIComponent(agent.id)}"
+							size="sm"
+						/>
 					{/each}
 				</div>
 				{#if agents.length > 6}
@@ -335,7 +306,7 @@
 					<div class="flex flex-col gap-3">
 						<h3 class="text-sm font-medium">{s.title}</h3>
 						<div
-							class="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible px-1 pb-1 [scrollbar-gutter:stable] mask-[linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] sm:mask-none"
+							class="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible px-1 pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden mask-[linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] sm:mask-none"
 							role="region"
 							aria-label={s.aria}
 						>

@@ -41,6 +41,7 @@
 
 <script lang="ts">
 	import NavMain from './nav-main.svelte';
+	import NavAgentSessions from './nav-agent-sessions.svelte';
 	import NavUser from './nav-user.svelte';
 	import WorkspaceSwitcher from './workspace-switcher.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
@@ -76,6 +77,7 @@
 	</Sidebar.Header>
 	<Sidebar.Content>
 		<NavMain items={[...navMain]} />
+		<NavAgentSessions />
 	</Sidebar.Content>
 	<Sidebar.Footer>
 		<NavUser {username} />
