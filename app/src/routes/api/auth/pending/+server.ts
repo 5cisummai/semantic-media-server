@@ -1,14 +1,15 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
+import { requireAdmin } from '$lib/server/api';
 import type { RequestHandler } from './$types';
 
-// GET /api/auth/pending — admin only, returns list of unapproved users
+// GET /api/auth/pending — admin only, returns unapproved (non-deleted) users
 export const GET: RequestHandler = async ({ locals }) => {
-	if (!locals.user) throw error(401, 'Unauthorized');
-	if (locals.user.role !== 'ADMIN') throw error(403, 'Forbidden');
+	await requireAdmin(locals);
 
+	// Only show pending users that haven't been soft-deleted (rejected)
 	const pending = await db.user.findMany({
-		where: { approved: false },
+		where: { approved: false, deletedAt: null },
 		select: { id: true, username: true, displayName: true, createdAt: true }
 	});
 

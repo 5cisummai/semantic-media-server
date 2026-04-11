@@ -1,5 +1,12 @@
-import { verifyJwt, generateAccessToken } from '$lib/server/auth';
+import { verifyJwt } from '$lib/server/auth';
+import { db } from '$lib/server/db';
 import type { Handle } from '@sveltejs/kit';
+
+const refreshCookieDeleteOpts = {
+	path: '/',
+	secure: process.env.NODE_ENV === 'production',
+	sameSite: 'strict' as const
+};
 
 // Routes accessible without a valid JWT
 const PUBLIC_PATHS = ['/login', '/signup', '/api/auth/login', '/api/auth/signup', '/api/auth/logout'];
@@ -24,9 +31,25 @@ export const handle: Handle = async ({ event, resolve }) => {
 		if (refreshToken) {
 			const payload = verifyJwt(refreshToken);
 			if (payload && payload.type === 'refresh') {
-				// Refresh token is valid, set user (client will get new access token after request setup)
 				event.locals.user = { id: payload.sub, username: payload.username, role: payload.role };
 			}
+		}
+	}
+
+	// Validate user still exists, is not soft-deleted, and is approved.
+	// This catches: deleted users, rejected users, revoked accounts, DB resets.
+	if (event.locals.user) {
+		const row = await db.user.findUnique({
+			where: { id: event.locals.user.id },
+			select: { id: true, role: true, approved: true, deletedAt: true }
+		});
+		if (!row || row.deletedAt !== null || !row.approved) {
+			event.locals.user = undefined;
+			event.cookies.delete('refreshToken', refreshCookieDeleteOpts);
+		} else {
+			// Refresh role from DB so locals.user always has the current role.
+			// This reduces (but does not eliminate) stale-role windows.
+			event.locals.user.role = row.role;
 		}
 	}
 

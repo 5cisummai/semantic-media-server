@@ -1,9 +1,10 @@
 import { error, json } from '@sveltejs/kit';
 import fs from 'node:fs/promises';
-import path from 'node:path';
+import * as path from '$lib/server/paths';
 import { resolveSafePath } from '$lib/server/services/storage';
 import { deleteSemanticEntryByRelativePath } from '$lib/server/semantic';
 import { db } from '$lib/server/db';
+import { requireAuth, audit } from '$lib/server/api';
 import type { RequestHandler } from './$types';
 
 async function collectNestedFilePaths(fullPath: string, relativePath: string): Promise<string[]> {
@@ -15,7 +16,7 @@ async function collectNestedFilePaths(fullPath: string, relativePath: string): P
 	const nestedPaths = await Promise.all(
 		dirents.map(async (dirent) => {
 			const childFullPath = path.join(fullPath, dirent.name);
-			const childRelativePath = path.join(relativePath, dirent.name).split(path.sep).join('/');
+			const childRelativePath = path.join(relativePath, dirent.name);
 			return collectNestedFilePaths(childFullPath, childRelativePath);
 		})
 	);
@@ -24,7 +25,8 @@ async function collectNestedFilePaths(fullPath: string, relativePath: string): P
 }
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
-	if (!locals.user) throw error(401, 'Unauthorized');
+	// Re-validate user from DB (not just JWT claims)
+	const user = await requireAuth(locals);
 
 	const relativePath = params.path ?? '';
 	const resolved = resolveSafePath(relativePath);
@@ -48,21 +50,20 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 		throw error(400, 'Only files and folders can be deleted');
 	}
 
-	const isAdmin = locals.user.role === 'ADMIN';
+	// Use DB-fresh role, not JWT role
+	const isAdmin = user.role === 'ADMIN';
 
 	if (!isAdmin) {
 		if (stat.isDirectory()) {
-			// Non-admins cannot delete directories
 			throw error(403, 'Only admins can delete directories');
 		}
 
-		// Check ownership for single-file deletes
 		const owned = await db.uploadedFile.findUnique({
 			where: { relativePath },
 			select: { uploadedById: true }
 		});
 
-		if (!owned || owned.uploadedById !== locals.user.id) {
+		if (!owned || owned.uploadedById !== user.id) {
 			throw error(403, 'You can only delete files you uploaded');
 		}
 	}
@@ -82,7 +83,6 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 		throw err;
 	}
 
-	// Clean up ownership records
 	if (semanticPaths.length > 0) {
 		await db.uploadedFile.deleteMany({
 			where: { relativePath: { in: semanticPaths } }
@@ -101,6 +101,18 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 			console.warn('Failed to delete semantic index entry:', semanticPaths[index], result.reason);
 		}
 	}
+
+	// Audit log for all file/directory deletions
+	await audit({
+		action: stat.isDirectory() ? 'DIRECTORY_DELETED' : 'FILE_DELETED',
+		actorId: user.id,
+		targetId: relativePath,
+		metadata: {
+			fileCount: semanticPaths.length,
+			isAdmin,
+			paths: semanticPaths.slice(0, 50) // Cap logged paths to prevent log bloat
+		}
+	});
 
 	return json({ success: true });
 };

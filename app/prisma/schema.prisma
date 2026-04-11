@@ -39,14 +39,15 @@ enum AgentRunStatus {
 // ---------------------------------------------------------------------------
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
+  id           String    @id @default(cuid())
+  username     String    @unique
   displayName  String
   passwordHash String
-  role         UserRole @default(USER)
-  approved     Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  role         UserRole  @default(USER)
+  approved     Boolean   @default(false)
+  deletedAt    DateTime? // Soft delete: non-null means the account has been deactivated/rejected
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   uploadedFiles            UploadedFile[]
   chatSessions             ChatSession[]
@@ -54,6 +55,23 @@ model User {
   workspaceMemberships     WorkspaceMember[]
   agentRuns                AgentRun[]
   workspaceFiles           WorkspaceFile[]
+}
+
+// ---------------------------------------------------------------------------
+// Audit Log — immutable record of security-relevant actions
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String   // e.g. USER_APPROVED, USER_REJECTED, FILE_DELETED
+  actorId   String?  // Who performed the action (null = system/anonymous)
+  targetId  String?  // What was acted upon (user ID, workspace ID, etc.)
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
+  @@index([targetId])
 }
 
 // ---------------------------------------------------------------------------

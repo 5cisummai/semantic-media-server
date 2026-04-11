@@ -1,40 +1,55 @@
 import { json, error } from '@sveltejs/kit';
 import { findUserByUsername, verifyPassword, generateAccessToken, generateRefreshToken } from '$lib/server/auth';
+import { parseBody, loginSchema, audit, checkRateLimit, LOGIN_RATE_LIMIT } from '$lib/server/api';
 import type { RequestHandler } from './$types';
 
-export const POST: RequestHandler = async ({ request, cookies }) => {
-	let body: unknown;
-	try {
-		body = await request.json();
-	} catch {
-		throw error(400, 'Invalid JSON');
-	}
+export const POST: RequestHandler = async ({ request, cookies, getClientAddress }) => {
+	const clientIp = getClientAddress();
+	checkRateLimit('login', clientIp, LOGIN_RATE_LIMIT);
 
-	const { username, password } = body as Record<string, unknown>;
+	// Zod validation replaces manual type checks
+	const { username, password } = await parseBody(request, loginSchema);
 
-	if (typeof username !== 'string' || typeof password !== 'string') {
-		throw error(400, 'username and password are required');
-	}
+	const normalizedUsername = username.trim().toLowerCase();
+	const user = await findUserByUsername(normalizedUsername);
 
-	const user = await findUserByUsername(username.trim().toLowerCase());
-
-	if (!user) {
-		// Constant-time stub to prevent user enumeration
+	if (!user || user.deletedAt !== null) {
+		// Constant-time stub to prevent user enumeration via timing
 		await verifyPassword(password, 'x:0'.padEnd(73, '0'));
+
+		await audit({
+			action: 'USER_LOGIN_FAILED',
+			actorId: null,
+			metadata: { username: normalizedUsername, reason: 'not_found', ip: clientIp }
+		});
+
+		// Uniform error message — don't reveal whether user exists
 		throw error(401, 'Invalid credentials');
 	}
 
 	const valid = await verifyPassword(password, user.passwordHash);
-	if (!valid) throw error(401, 'Invalid credentials');
+	if (!valid) {
+		await audit({
+			action: 'USER_LOGIN_FAILED',
+			actorId: user.id,
+			metadata: { reason: 'bad_password', ip: clientIp }
+		});
+		throw error(401, 'Invalid credentials');
+	}
 
 	if (!user.approved) {
-		throw error(403, 'Account pending admin approval');
+		await audit({
+			action: 'USER_LOGIN_FAILED',
+			actorId: user.id,
+			metadata: { reason: 'not_approved', ip: clientIp }
+		});
+		// Don't reveal approval status — same error as bad credentials
+		throw error(401, 'Invalid credentials');
 	}
 
 	const accessToken = generateAccessToken({ sub: user.id, username: user.username, role: user.role });
 	const refreshToken = generateRefreshToken({ sub: user.id, username: user.username, role: user.role });
 
-	// Set refresh token in httpOnly cookie
 	cookies.set('refreshToken', refreshToken, {
 		httpOnly: true,
 		secure: process.env.NODE_ENV === 'production',
@@ -43,10 +58,16 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		maxAge: 60 * 60 * 24 * 7 // 7 days
 	});
 
-	return json({ 
-		accessToken, 
-		role: user.role, 
-		username: user.username, 
-		displayName: user.displayName 
+	await audit({
+		action: 'USER_LOGIN',
+		actorId: user.id,
+		metadata: { ip: clientIp }
+	});
+
+	return json({
+		accessToken,
+		role: user.role,
+		username: user.username,
+		displayName: user.displayName
 	});
 };
