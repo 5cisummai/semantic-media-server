@@ -11,6 +11,7 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { agentSessions } from '$lib/hooks/agent-sessions.svelte';
+	import { dedupeChatsById } from '$lib/utils.js';
 	import type { FileEntry } from '$lib/components/file-browser/file-grid.svelte';
 	import FilePreviewTile from '$lib/components/file-browser/file-preview-tile.svelte';
 	import AgentStatusItem from '$lib/components/agent-status-item.svelte';
@@ -72,7 +73,7 @@
 			const res = await fetch('/api/chats');
 			if (res.ok) {
 				const payload = (await res.json()) as { chats?: AgentSummary[] };
-				const chats = Array.isArray(payload.chats) ? payload.chats : [];
+				const chats = dedupeChatsById(Array.isArray(payload.chats) ? payload.chats : []);
 				agents = chats;
 				// Seed the global store with initial statuses from the fetch.
 				agentSessions.seedFromChats(chats);

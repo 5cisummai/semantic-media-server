@@ -18,6 +18,7 @@
 		SIDEBAR_COOKIE_MAX_AGE,
 	} from '$lib/components/ui/sidebar/constants.js';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte.js';
+	import { dedupeChatsById } from '$lib/utils.js';
 	import type { PageData } from './$types';
 
 	/** Matches Tailwind `md:` — agents list uses inline sidebar on desktop, sheet on small screens. */
@@ -61,7 +62,7 @@
 				throw new Error(`Failed to load agents (${response.status})`);
 			}
 			const payload = (await response.json()) as { chats?: AgentSummary[] };
-			agents = Array.isArray(payload.chats) ? payload.chats : [];
+			agents = dedupeChatsById(Array.isArray(payload.chats) ? payload.chats : []);
 			if (preferredAgentId) {
 				activeAgentId = preferredAgentId;
 			}
@@ -232,27 +233,27 @@
 
 <div class="flex h-full min-h-0 w-full flex-col bg-background">
 	<Sidebar.Provider class="flex h-full min-h-0 w-full flex-1">
-		{#if agentSidebarOpen && !isNarrowViewport.current}
-			<Sidebar.Root
-				class="flex h-full min-h-0 w-72 shrink-0 border-r border-border/60 bg-muted/20"
-				collapsible="none"
-			>
-				{@render agentsPanel()}
-			</Sidebar.Root>
-		{/if}
-
-		{#if agentSidebarOpen && isNarrowViewport.current}
-			<Sheet.Root bind:open={agentSidebarOpen}>
-				<Sheet.Content
-					side="left"
-					showCloseButton={false}
-					class="h-full max-w-none gap-0 border-r border-border/60 bg-muted/20 p-0 data-[side=left]:w-[min(22rem,calc(100vw-1rem))]"
+		{#if agentSidebarOpen}
+			{#if isNarrowViewport.current}
+				<Sheet.Root bind:open={agentSidebarOpen}>
+					<Sheet.Content
+						side="left"
+						showCloseButton={false}
+						class="h-full max-w-none gap-0 border-r border-border/60 bg-muted/20 p-0 data-[side=left]:w-[min(22rem,calc(100vw-1rem))]"
+					>
+						<div class="flex h-full min-h-0 flex-col">
+							{@render agentsPanel()}
+						</div>
+					</Sheet.Content>
+				</Sheet.Root>
+			{:else}
+				<Sidebar.Root
+					class="flex h-full min-h-0 w-72 shrink-0 border-r border-border/60 bg-muted/20"
+					collapsible="none"
 				>
-					<div class="flex h-full min-h-0 flex-col">
-						{@render agentsPanel()}
-					</div>
-				</Sheet.Content>
-			</Sheet.Root>
+					{@render agentsPanel()}
+				</Sidebar.Root>
+			{/if}
 		{/if}
 
 		<div class="relative flex h-full min-h-0 flex-1">

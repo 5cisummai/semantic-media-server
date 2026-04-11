@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { dedupeChatsById } from '$lib/utils.js';
 	import { agentSessions } from '$lib/hooks/agent-sessions.svelte';
 	import AgentStatusItem from '$lib/components/agent-status-item.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
@@ -23,7 +24,8 @@
 			const res = await fetch('/api/chats');
 			if (res.ok) {
 				const payload = (await res.json()) as { chats?: AgentSession[] };
-				sessions = Array.isArray(payload.chats) ? payload.chats.slice(0, 8) : [];
+				const list = dedupeChatsById(Array.isArray(payload.chats) ? payload.chats : []);
+				sessions = list.slice(0, 8);
 			}
 		} catch {
 			// silently fail — sidebar is non-critical

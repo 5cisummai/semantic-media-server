@@ -4,6 +4,7 @@ import {
 	listChatsForUser,
 	titleFromQuestion
 } from '$lib/server/chat-store';
+import { dedupeChatsById } from '$lib/utils.js';
 import { getActiveRunForChat } from '$lib/server/agent-runs';
 import type { RequestHandler } from './$types';
 
@@ -29,7 +30,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		})
 	);
 
-	return json({ chats: chatsWithStatus });
+	return json({ chats: dedupeChatsById(chatsWithStatus) });
 };
 
 export const POST: RequestHandler = async ({ locals, request }) => {
