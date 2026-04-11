@@ -1,18 +1,19 @@
 <script lang="ts">
-	import * as Avatar from "$lib/components/ui/avatar/index.js";
-	import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
-	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
-	import { useSidebar } from "$lib/components/ui/sidebar/index.js";
-	import { goto } from "$app/navigation";
-	import { apiFetch } from "$lib/api-fetch";
-	import BadgeCheckIcon from "@lucide/svelte/icons/badge-check";
-	import BellIcon from "@lucide/svelte/icons/bell";
-	import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
-	import LogOutIcon from "@lucide/svelte/icons/log-out";
+	import * as Avatar from '$lib/components/ui/avatar/index.js';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
+	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { apiFetch } from '$lib/api-fetch';
+	import BadgeCheckIcon from '@lucide/svelte/icons/badge-check';
+	import BellIcon from '@lucide/svelte/icons/bell';
+	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
+	import LogOutIcon from '@lucide/svelte/icons/log-out';
 
 	let {
 		username,
-		avatar,
+		avatar
 	}: {
 		username: string;
 		avatar?: string | null;
@@ -22,15 +23,22 @@
 
 	let loggingOut = $state(false);
 
+	function clearLegacyAuthStorage() {
+		if (typeof localStorage === 'undefined') return;
+		localStorage.removeItem('accessToken');
+		localStorage.removeItem('username');
+		localStorage.removeItem('role');
+	}
+
 	async function logout() {
 		if (loggingOut) return;
 		loggingOut = true;
 		try {
-			await apiFetch("/api/auth/logout", { method: "POST" });
+			await apiFetch('/api/auth/logout', { method: 'POST' });
 		} finally {
-			localStorage.removeItem("accessToken");
+			clearLegacyAuthStorage();
 			loggingOut = false;
-			await goto("/login");
+			await goto(resolve('/login'));
 		}
 	}
 
@@ -38,7 +46,7 @@
 		username
 			.slice(0, 2)
 			.toUpperCase()
-			.replace(/[^A-Z0-9]/g, "") || "?"
+			.replace(/[^A-Z0-9]/g, '') || '?'
 	);
 </script>
 
@@ -67,7 +75,7 @@
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content
 				class="w-(--bits-dropdown-menu-anchor-width) min-w-56 rounded-lg"
-				side={sidebar.isMobile ? "bottom" : "right"}
+				side={sidebar.isMobile ? 'bottom' : 'right'}
 				align="end"
 				sideOffset={4}
 			>
@@ -98,7 +106,7 @@
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item variant="destructive" disabled={loggingOut} onclick={logout}>
 					<LogOutIcon />
-					{loggingOut ? "Signing out…" : "Log out"}
+					{loggingOut ? 'Signing out…' : 'Log out'}
 				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>

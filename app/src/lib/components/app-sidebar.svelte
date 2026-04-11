@@ -10,32 +10,32 @@
 		{
 			title: 'Home',
 			href: '/home',
-			icon: HomeIcon,
+			icon: HomeIcon
 		},
 		{
 			title: 'Browser',
 			href: '/browse',
-			icon: FilesIcon,
+			icon: FilesIcon
 		},
 		{
 			title: 'Agent',
 			href: '/chat',
-			icon: BotIcon,
+			icon: BotIcon
 		},
 		{
 			title: 'Smart Search',
-			icon: MagnifyingGlassIcon,
+			icon: MagnifyingGlassIcon
 		},
 		{
 			title: 'Workspace',
 			href: '/workspace',
-			icon: FolderCogIcon,
+			icon: FolderCogIcon
 		},
 		{
 			title: 'Settings',
 			href: '/settings',
-			icon: SettingsIcon,
-		},
+			icon: SettingsIcon
+		}
 	] as const;
 </script>
 
@@ -45,20 +45,14 @@
 	import NavUser from './nav-user.svelte';
 	import WorkspaceSwitcher from './workspace-switcher.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import { browser } from '$app/environment';
 	import type { ComponentProps } from 'svelte';
 
 	let {
 		ref = $bindable(null),
 		collapsible = 'icon',
+		username = 'User',
 		...restProps
-	}: ComponentProps<typeof Sidebar.Root> = $props();
-
-	let username = $state('User');
-
-	if (browser) {
-		username = localStorage.getItem('username') ?? 'User';
-	}
+	}: ComponentProps<typeof Sidebar.Root> & { username?: string } = $props();
 </script>
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>

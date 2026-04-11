@@ -14,7 +14,7 @@
 	const sidebar = useSidebar();
 
 	async function activateWorkspace(workspaceId: string) {
-		workspaceStore.select(workspaceId);
+		await workspaceStore.select(workspaceId);
 		await invalidateAll();
 	}
 </script>
@@ -30,7 +30,7 @@
 						class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
 					>
 						<div
-							class="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg"
+							class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
 						>
 							<FolderOpenIcon class="size-4" />
 						</div>
@@ -39,7 +39,10 @@
 								{workspaceStore.active?.name ?? 'No Workspace'}
 							</span>
 							<span class="truncate text-xs text-muted-foreground">
-								{workspaceStore.active?.memberCount ?? 0} member{(workspaceStore.active?.memberCount ?? 0) !== 1 ? 's' : ''}
+								{workspaceStore.active?.memberCount ?? 0} member{(workspaceStore.active
+									?.memberCount ?? 0) !== 1
+									? 's'
+									: ''}
 							</span>
 						</div>
 						<ChevronsUpDownIcon class="ms-auto" />
@@ -52,7 +55,7 @@
 				side={sidebar.isMobile ? 'bottom' : 'right'}
 				sideOffset={4}
 			>
-				<DropdownMenu.Label class="text-muted-foreground text-xs">Workspaces</DropdownMenu.Label>
+				<DropdownMenu.Label class="text-xs text-muted-foreground">Workspaces</DropdownMenu.Label>
 				{#each workspaceStore.workspaces as ws (ws.id)}
 					<DropdownMenu.Item onSelect={() => activateWorkspace(ws.id)} class="gap-2 p-2">
 						<div class="flex size-6 items-center justify-center rounded-md border">
@@ -69,7 +72,7 @@
 					<div class="flex size-6 items-center justify-center rounded-md border bg-transparent">
 						<PlusIcon class="size-4" />
 					</div>
-					<div class="text-muted-foreground font-medium">Create workspace</div>
+					<div class="font-medium text-muted-foreground">Create workspace</div>
 				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>

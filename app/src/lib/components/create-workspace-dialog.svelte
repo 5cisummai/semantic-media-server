@@ -46,7 +46,7 @@
 			if (res.ok) {
 				const { workspace } = (await res.json()) as { workspace: WorkspaceSummary };
 				workspaceStore.addWorkspace(workspace);
-				workspaceStore.select(workspace.id);
+				await workspaceStore.select(workspace.id);
 				await invalidateAll();
 				toast.success(`Workspace "${workspace.name}" created`);
 				open = false;
@@ -94,7 +94,12 @@
 			</div>
 			<div class="grid gap-2">
 				<Label for="ws-desc">Description</Label>
-				<Textarea id="ws-desc" bind:value={description} placeholder="Optional description..." rows={2} />
+				<Textarea
+					id="ws-desc"
+					bind:value={description}
+					placeholder="Optional description..."
+					rows={2}
+				/>
 			</div>
 			<Dialog.Footer>
 				<Button type="button" variant="outline" onclick={() => (open = false)}>Cancel</Button>

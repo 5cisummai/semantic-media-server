@@ -7,7 +7,7 @@ const cookieOpts = {
 	sameSite: 'strict' as const
 };
 
-/** Clears the httpOnly refresh cookie. Client should remove `accessToken` from localStorage. */
+/** Clears the httpOnly refresh cookie. */
 export const POST: RequestHandler = async ({ cookies }) => {
 	cookies.delete('refreshToken', cookieOpts);
 	return json({ ok: true });

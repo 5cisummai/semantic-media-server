@@ -1,10 +1,6 @@
 import { browser } from '$app/environment';
 import { apiFetch } from '$lib/api-fetch';
-import {
-	ACTIVE_WORKSPACE_COOKIE_MAX_AGE,
-	ACTIVE_WORKSPACE_COOKIE_NAME,
-	ACTIVE_WORKSPACE_STORAGE_KEY
-} from '$lib/workspace-state';
+import { ACTIVE_WORKSPACE_STORAGE_KEY } from '$lib/workspace-state';
 
 export interface WorkspaceSummary {
 	id: string;
@@ -22,12 +18,23 @@ function persistActiveWorkspaceId(id: string | null) {
 
 	if (id) {
 		localStorage.setItem(ACTIVE_WORKSPACE_STORAGE_KEY, id);
-		document.cookie = `${ACTIVE_WORKSPACE_COOKIE_NAME}=${encodeURIComponent(id)}; path=/; max-age=${ACTIVE_WORKSPACE_COOKIE_MAX_AGE}; samesite=strict`;
 		return;
 	}
 
 	localStorage.removeItem(ACTIVE_WORKSPACE_STORAGE_KEY);
-	document.cookie = `${ACTIVE_WORKSPACE_COOKIE_NAME}=; path=/; max-age=0; samesite=strict`;
+}
+
+async function persistActiveWorkspaceCookie(id: string | null): Promise<void> {
+	if (!browser) return;
+	try {
+		await apiFetch('/api/workspaces/active', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ workspaceId: id })
+		});
+	} catch {
+		// Best effort; UI state still uses local store.
+	}
 }
 
 function readStoredActiveWorkspaceId(): string | null {
@@ -48,6 +55,7 @@ class WorkspaceStore {
 		this.workspaces = workspaces;
 		this.activeId = activeId;
 		persistActiveWorkspaceId(activeId);
+		void persistActiveWorkspaceCookie(activeId);
 	}
 
 	async load() {
@@ -68,9 +76,10 @@ class WorkspaceStore {
 		}
 	}
 
-	select(id: string) {
+	async select(id: string) {
 		this.activeId = id;
 		persistActiveWorkspaceId(id);
+		await persistActiveWorkspaceCookie(id);
 	}
 
 	addWorkspace(ws: WorkspaceSummary) {

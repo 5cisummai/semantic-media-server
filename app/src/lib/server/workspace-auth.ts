@@ -21,8 +21,7 @@ export async function requireWorkspaceAccess(
 	try {
 		const role = await requireMembership(workspaceId, user.id, minRole);
 		return { workspaceId, userId: user.id, role };
-	} catch (err) {
-		const msg = err instanceof Error ? err.message : 'Workspace access denied';
-		throw error(403, msg);
+	} catch {
+		throw error(403, 'Forbidden');
 	}
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { untrack } from 'svelte';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import BotIcon from '@lucide/svelte/icons/bot';
 	import FilesIcon from '@lucide/svelte/icons/files';
@@ -63,7 +64,9 @@
 	$effect(() => {
 		const chats = dedupeChatsById(data.agents);
 		agents = chats;
-		agentSessions.seedFromChats(chats);
+		untrack(() => {
+			agentSessions.seedFromChats(chats);
+		});
 	});
 
 	function relativeTimestamp(iso: string): string {
@@ -163,7 +166,7 @@
 </script>
 
 <div class="min-h-full min-w-0 bg-background text-foreground">
-	<main class="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-10 px-4 py-10 sm:px-6">
+	<main class="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-10 px-4 py-10 sm:px-6">
 		<!-- ── Hero / Composer ─────────────────────────────────────────────── -->
 		<section class="flex min-w-0 flex-col items-center gap-6 text-center">
 			<div class="flex flex-col gap-1">
@@ -296,7 +299,7 @@
 					<div class="flex min-w-0 flex-col gap-3">
 						<h3 class="text-sm font-medium">{s.title}</h3>
 						<div
-							class="-mx-1 flex min-w-0 w-full snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible mask-[linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:mask-none [&::-webkit-scrollbar]:hidden"
+							class="-mx-1 flex w-full min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible mask-[linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:mask-none [&::-webkit-scrollbar]:hidden"
 							role="region"
 							aria-label={s.aria}
 						>

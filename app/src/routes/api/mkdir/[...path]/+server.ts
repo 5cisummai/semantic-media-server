@@ -1,9 +1,11 @@
 import { json, error } from '@sveltejs/kit';
 import fs from 'node:fs/promises';
+import { requireAuth } from '$lib/server/api';
 import { resolveSafePath } from '$lib/server/services/storage';
 import type { RequestHandler } from './$types';
 
-export const POST: RequestHandler = async ({ params }) => {
+export const POST: RequestHandler = async ({ params, locals }) => {
+	await requireAuth(locals);
 	const relativePath = params.path ?? '';
 	if (!relativePath) throw error(400, 'Path required');
 

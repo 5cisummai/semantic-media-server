@@ -17,7 +17,10 @@
 
 	// Seed workspace store from server-loaded data
 	$effect(() => {
-		workspaceStore.hydrate(data.workspaces, data.activeWorkspaceId ?? data.workspaces[0]?.id ?? null);
+		workspaceStore.hydrate(
+			data.workspaces,
+			data.activeWorkspaceId ?? data.workspaces[0]?.id ?? null
+		);
 	});
 
 	onMount(() => {
@@ -28,7 +31,7 @@
 
 <div class="h-screen w-full overflow-hidden bg-background text-foreground">
 	<Sidebar.Provider class="h-full" bind:open={sidebarOpen}>
-		<AppSidebar />
+		<AppSidebar username={data.user?.username ?? 'User'} />
 
 		<div class="flex h-full w-full flex-col">
 			<AppTopbar>

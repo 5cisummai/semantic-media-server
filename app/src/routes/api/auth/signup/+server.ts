@@ -1,5 +1,5 @@
 import { json, error } from '@sveltejs/kit';
-import { createUser, generateAccessToken, generateRefreshToken } from '$lib/server/auth';
+import { createUser, generateRefreshToken } from '$lib/server/auth';
 import { parseBody, signupSchema, audit, checkRateLimit, SIGNUP_RATE_LIMIT } from '$lib/server/api';
 import type { RequestHandler } from './$types';
 
@@ -22,8 +22,11 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 
 		// If user is auto-approved (first user), generate tokens
 		if (user.approved) {
-			const accessToken = generateAccessToken({ sub: user.id, username: user.username, role: user.role });
-			const refreshToken = generateRefreshToken({ sub: user.id, username: user.username, role: user.role });
+			const refreshToken = generateRefreshToken({
+				sub: user.id,
+				username: user.username,
+				role: user.role
+			});
 
 			cookies.set('refreshToken', refreshToken, {
 				httpOnly: true,
@@ -37,8 +40,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 				id: user.id,
 				username: user.username,
 				approved: user.approved,
-				role: user.role,
-				accessToken
+				role: user.role
 			});
 		}
 

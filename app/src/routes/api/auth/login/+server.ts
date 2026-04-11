@@ -1,5 +1,5 @@
 import { json, error } from '@sveltejs/kit';
-import { findUserByUsername, verifyPassword, generateAccessToken, generateRefreshToken } from '$lib/server/auth';
+import { findUserByUsername, verifyPassword, generateRefreshToken } from '$lib/server/auth';
 import { parseBody, loginSchema, audit, checkRateLimit, LOGIN_RATE_LIMIT } from '$lib/server/api';
 import type { RequestHandler } from './$types';
 
@@ -47,8 +47,11 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 		throw error(401, 'Invalid credentials');
 	}
 
-	const accessToken = generateAccessToken({ sub: user.id, username: user.username, role: user.role });
-	const refreshToken = generateRefreshToken({ sub: user.id, username: user.username, role: user.role });
+	const refreshToken = generateRefreshToken({
+		sub: user.id,
+		username: user.username,
+		role: user.role
+	});
 
 	cookies.set('refreshToken', refreshToken, {
 		httpOnly: true,
@@ -65,7 +68,6 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 	});
 
 	return json({
-		accessToken,
 		role: user.role,
 		username: user.username,
 		displayName: user.displayName
