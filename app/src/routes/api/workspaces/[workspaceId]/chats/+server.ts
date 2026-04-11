@@ -1,6 +1,6 @@
-import { error, json } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { getActiveRunForChat } from '$lib/server/agent-runs';
+import { titleFromQuestion, withChatStatuses } from '$lib/server/chat-store';
 import { requireWorkspaceAccess } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
 
@@ -21,27 +21,18 @@ export const GET: RequestHandler = async (event) => {
 		}
 	});
 
-	const chatsWithStatus = await Promise.all(
-		chats.map(async (chat) => {
-			const run = await getActiveRunForChat(chat.id);
-			const status: 'idle' | 'working' | 'done' = run
-				? run.status === 'DONE' || run.status === 'FAILED'
-					? 'done'
-					: 'working'
-				: 'idle';
-			return {
+	return json({
+		chats: await withChatStatuses(
+			chats.map((chat) => ({
 				id: chat.id,
 				title: chat.title,
 				userId: chat.userId,
 				createdAt: chat.createdAt.toISOString(),
 				updatedAt: chat.updatedAt.toISOString(),
-				messageCount: chat._count.messages,
-				status
-			};
-		})
-	);
-
-	return json({ chats: chatsWithStatus });
+				messageCount: chat._count.messages
+			}))
+		)
+	});
 };
 
 interface CreateChatBody {
@@ -52,7 +43,7 @@ export const POST: RequestHandler = async (event) => {
 	const { workspaceId, userId } = await requireWorkspaceAccess(event, 'MEMBER');
 
 	const body = (await event.request.json().catch(() => null)) as CreateChatBody | null;
-	const title = body?.title?.trim() || 'New chat';
+	const title = titleFromQuestion(body?.title ?? '');
 
 	const chat = await db.chatSession.create({
 		data: {

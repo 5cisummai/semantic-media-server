@@ -232,5 +232,5 @@ export async function getWorkspaceFileInfo(
 /** Remove all workspace file storage. Called on workspace deletion. */
 export async function removeWorkspaceStorage(workspaceId: string): Promise<void> {
 	const dir = path.join(getWorkspaceRoot(), workspaceId);
-	await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+	await fs.rm(dir, { recursive: true, force: true });
 }

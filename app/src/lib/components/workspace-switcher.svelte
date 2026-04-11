@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
@@ -11,6 +12,11 @@
 
 	let showCreate = $state(false);
 	const sidebar = useSidebar();
+
+	async function activateWorkspace(workspaceId: string) {
+		workspaceStore.select(workspaceId);
+		await invalidateAll();
+	}
 </script>
 
 <Sidebar.Menu>
@@ -48,7 +54,7 @@
 			>
 				<DropdownMenu.Label class="text-muted-foreground text-xs">Workspaces</DropdownMenu.Label>
 				{#each workspaceStore.workspaces as ws (ws.id)}
-					<DropdownMenu.Item onSelect={() => workspaceStore.select(ws.id)} class="gap-2 p-2">
+					<DropdownMenu.Item onSelect={() => activateWorkspace(ws.id)} class="gap-2 p-2">
 						<div class="flex size-6 items-center justify-center rounded-md border">
 							<FolderOpenIcon class="size-3.5 shrink-0" />
 						</div>

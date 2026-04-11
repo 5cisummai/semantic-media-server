@@ -36,6 +36,18 @@ export const passwordSchema = z
 /** Workspace role enum */
 export const workspaceRoleSchema = z.enum(['ADMIN', 'MEMBER', 'VIEWER']);
 
+/** Workspace name: trimmed, 1-128 chars */
+export const workspaceNameSchema = z
+	.string()
+	.trim()
+	.min(1, 'Name is required')
+	.max(128, 'Name must be at most 128 characters');
+
+/** Workspace description: up to 1024 chars */
+export const workspaceDescriptionSchema = z
+	.string()
+	.max(1024, 'Description must be at most 1024 characters');
+
 // ── Endpoint schemas ─────────────────────────────────────────────────────────
 
 export const approveUserSchema = z
@@ -72,17 +84,26 @@ export const updateRoleSchema = z
 
 export const updateWorkspaceSchema = z
 	.object({
-		name: z.string().min(1).max(128).optional(),
+		name: workspaceNameSchema.optional(),
 		slug: slugSchema.optional(),
-		description: z.string().max(1024).optional()
+		description: workspaceDescriptionSchema.nullable().optional()
 	})
 	.strict();
 
 export const createWorkspaceSchema = z
 	.object({
-		name: z.string().min(1, 'Name is required').max(128),
+		name: workspaceNameSchema,
 		slug: slugSchema,
-		description: z.string().max(1024).optional()
+		description: workspaceDescriptionSchema.optional()
+	})
+	.strict();
+
+export const ingestDirectorySchema = z
+	.object({
+		rootIndex: z
+			.number()
+			.refine(Number.isInteger, { message: 'rootIndex must be an integer' })
+			.refine((value) => value >= 0, { message: 'rootIndex must be non-negative' })
 	})
 	.strict();
 

@@ -5,7 +5,6 @@
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import UploadIcon from '@lucide/svelte/icons/upload';
-	import { apiFetch } from '$lib/api-fetch';
 	import FileBrowserSidebar from './file-browser-sidebar.svelte';
 	import FileGrid from './file-grid.svelte';
 
@@ -13,48 +12,19 @@
 
 	let {
 		fileTree = [],
+		folderContents = [],
 		selectedPath = null,
 		currentPath = ''
-	}: { fileTree?: FileEntry[]; selectedPath?: string | null; currentPath?: string } = $props();
+	}: {
+		fileTree?: FileEntry[];
+		folderContents?: FileEntry[];
+		selectedPath?: string | null;
+		currentPath?: string;
+	} = $props();
 
 	const dispatch = createEventDispatcher<{ select: FileEntry; pathChange: string }>();
-	let folderContents = $state<FileEntry[]>([]);
-	let loading = $state(false);
 	let fileGrid = $state<{ triggerUpload: () => void } | null>(null);
-
-	async function loadFolder(path: string) {
-		loading = true;
-		try {
-			const url = path ? `/api/browse/${path}` : '/api/browse';
-			const res = await apiFetch(url);
-			if (res.ok) {
-				const data = await res.json();
-				if (!path) {
-					folderContents = data.map((entry: { name: string; path: string; type: string }) => ({
-						name: entry.name,
-						path: entry.path,
-						type: entry.type as 'file' | 'directory',
-						children: entry.type === 'directory' ? [] : undefined
-					}));
-				} else {
-					folderContents = data.map((entry: { name: string; path: string; type: string }) => ({
-						name: entry.name,
-						path: entry.path,
-						type: entry.type as 'file' | 'directory',
-						children: []
-					}));
-				}
-			}
-		} catch (e) {
-			console.error('Failed to load folder:', e);
-		} finally {
-			loading = false;
-		}
-	}
-
-	$effect(() => {
-		loadFolder(currentPath);
-	});
+	let refreshing = $state(false);
 
 	function handleSidebarSelect(event: CustomEvent<string>) {
 		const path = event.detail;
@@ -74,8 +44,12 @@
 	}
 
 	async function handleGridRefresh() {
-		await loadFolder(currentPath);
-		await invalidateAll();
+		refreshing = true;
+		try {
+			await invalidateAll();
+		} finally {
+			refreshing = false;
+		}
 	}
 
 	function navigateTo(path: string) {
@@ -113,7 +87,7 @@
 			variant="outline"
 			size="sm"
 			class="shrink-0 gap-1.5"
-			disabled={loading}
+			disabled={refreshing}
 			onclick={() => fileGrid?.triggerUpload()}
 		>
 			<UploadIcon class="size-4" />
@@ -133,7 +107,7 @@
 		</Resizable.Pane>
 		<Resizable.Handle withHandle />
 		<Resizable.Pane class="overflow-hidden">
-			{#if loading}
+			{#if refreshing}
 				<div class="flex h-full items-center justify-center p-8 text-muted-foreground">
 					Loading...
 				</div>

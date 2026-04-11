@@ -1,11 +1,8 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { onMount } from 'svelte';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import BotIcon from '@lucide/svelte/icons/bot';
-	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import FilesIcon from '@lucide/svelte/icons/files';
 	import { Button } from '$lib/components/ui/button';
 	import { Textarea } from '$lib/components/ui/textarea';
@@ -15,8 +12,11 @@
 	import type { FileEntry } from '$lib/components/file-browser/file-grid.svelte';
 	import FilePreviewTile from '$lib/components/file-browser/file-preview-tile.svelte';
 	import AgentStatusItem from '$lib/components/agent-status-item.svelte';
+	import type { PageData } from './$types';
 
-	const username = $derived(($page.data.user as { username?: string } | undefined)?.username ?? '');
+	let { data }: { data: PageData } = $props();
+
+	const username = $derived(data.user?.username ?? '');
 
 	function greeting(): string {
 		const h = new Date().getHours();
@@ -56,31 +56,14 @@
 	];
 
 	// ── Recent agent sessions ─────────────────────────────────────────────────
-	interface AgentSummary {
-		id: string;
-		title: string;
-		createdAt: string;
-		updatedAt: string;
-		messageCount: number;
-		status: 'idle' | 'working' | 'done';
-	}
+	type AgentSummary = PageData['agents'][number];
 
 	let agents = $state<AgentSummary[]>([]);
-	let loadingAgents = $state(true);
 
-	onMount(async () => {
-		try {
-			const res = await fetch('/api/chats');
-			if (res.ok) {
-				const payload = (await res.json()) as { chats?: AgentSummary[] };
-				const chats = dedupeChatsById(Array.isArray(payload.chats) ? payload.chats : []);
-				agents = chats;
-				// Seed the global store with initial statuses from the fetch.
-				agentSessions.seedFromChats(chats);
-			}
-		} finally {
-			loadingAgents = false;
-		}
+	$effect(() => {
+		const chats = dedupeChatsById(data.agents);
+		agents = chats;
+		agentSessions.seedFromChats(chats);
 	});
 
 	function relativeTimestamp(iso: string): string {
@@ -109,7 +92,7 @@
 		children?: BrowseNode[];
 	};
 
-	const fileTree = $derived(($page.data.fileTree ?? []) as BrowseNode[]);
+	const fileTree = $derived((data.fileTree ?? []) as BrowseNode[]);
 
 	function toFileEntries(nodes: BrowseNode[]): FileEntry[] {
 		return nodes.map((node, index) => {
@@ -254,12 +237,7 @@
 				</Button>
 			</div>
 
-			{#if loadingAgents}
-				<div class="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-					<LoaderIcon class="size-4 animate-spin" />
-					Loading sessions…
-				</div>
-			{:else if agents.length === 0}
+			{#if agents.length === 0}
 				<Card.Root class="border-dashed">
 					<Card.Content class="flex flex-col items-center gap-3 py-10 text-center">
 						<div class="flex size-10 items-center justify-center rounded-full bg-muted">

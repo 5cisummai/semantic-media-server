@@ -1,6 +1,8 @@
 import { db } from '$lib/server/db';
 import type { Prisma } from '@prisma/client';
 import type { ConversationMessage } from '$lib/server/agent/types';
+import { getActiveRunForChat } from '$lib/server/agent-runs';
+import { dedupeChatsById } from '$lib/utils.js';
 
 const UNTITLED_CHAT = 'New chat';
 const MAX_TITLE_LENGTH = 120;
@@ -39,6 +41,9 @@ export type ChatSummary = {
 	updatedAt: string;
 	messageCount: number;
 };
+
+export type ChatStatus = 'idle' | 'working' | 'done';
+export type ChatSummaryWithStatus = ChatSummary & { status: ChatStatus };
 
 export type StoredChatMessage = {
 	id: string;
@@ -111,6 +116,30 @@ export async function listChatsForUser(userId: string): Promise<ChatSummary[]> {
 		updatedAt: row.updatedAt.toISOString(),
 		messageCount: row._count.messages
 	}));
+}
+
+export async function withChatStatuses<T extends { id: string }>(
+	items: T[],
+	userId?: string
+): Promise<Array<T & { status: ChatStatus }>> {
+	const itemsWithStatus = await Promise.all(
+		items.map(async (item) => {
+			const run = await getActiveRunForChat(item.id, userId);
+			const status: ChatStatus = run
+				? run.status === 'DONE' || run.status === 'FAILED'
+					? 'done'
+					: 'working'
+				: 'idle';
+
+			return { ...item, status };
+		})
+	);
+
+	return dedupeChatsById(itemsWithStatus);
+}
+
+export async function listChatsWithStatusForUser(userId: string): Promise<ChatSummaryWithStatus[]> {
+	return withChatStatuses(await listChatsForUser(userId), userId);
 }
 
 export async function createChatForUser(userId: string, title: string): Promise<ChatSummary> {

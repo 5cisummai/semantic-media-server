@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { workspaceStore } from '$lib/hooks/workspace.svelte';
 	import { apiFetch } from '$lib/api-fetch';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -12,54 +13,21 @@
 	import UserIcon from '@lucide/svelte/icons/user';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import TrashIcon from '@lucide/svelte/icons/trash';
+	import type { PageData } from './$types';
 
-	interface Member {
-		id: string;
-		userId: string;
-		username: string;
-		displayName: string;
-		role: 'ADMIN' | 'MEMBER' | 'VIEWER';
-		joinedAt: string;
-	}
+	let { data }: { data: PageData } = $props();
 
-	interface WorkspaceDetail {
-		id: string;
-		name: string;
-		slug: string;
-		description: string | null;
-		role: string;
-		members: Member[];
-		memberCount: number;
-	}
-
-	let workspace = $state<WorkspaceDetail | null>(null);
-	let loading = $state(true);
 	let editName = $state('');
 	let editDescription = $state('');
 	let saving = $state(false);
 	let confirmDelete = $state(false);
 
+	const workspace = $derived(data.workspace);
 	const isAdmin = $derived(workspace?.role === 'ADMIN');
 
-	async function loadWorkspace() {
-		if (!workspaceStore.activeId) return;
-		loading = true;
-		try {
-			const res = await apiFetch(`/api/workspaces/${workspaceStore.activeId}`);
-			if (res.ok) {
-				workspace = await res.json();
-				editName = workspace!.name;
-				editDescription = workspace!.description ?? '';
-			}
-		} finally {
-			loading = false;
-		}
-	}
-
 	$effect(() => {
-		if (workspaceStore.activeId) {
-			loadWorkspace();
-		}
+		editName = workspace?.name ?? '';
+		editDescription = workspace?.description ?? '';
 	});
 
 	async function saveDetails() {
@@ -76,8 +44,8 @@
 			});
 			if (res.ok) {
 				toast.success('Workspace updated');
-				await loadWorkspace();
 				await workspaceStore.load();
+				await invalidateAll();
 			} else {
 				toast.error('Failed to update workspace');
 			}
@@ -95,7 +63,7 @@
 		});
 		if (res.ok) {
 			toast.success('Role updated');
-			await loadWorkspace();
+			await invalidateAll();
 		} else {
 			toast.error('Failed to update role');
 		}
@@ -108,7 +76,7 @@
 		});
 		if (res.ok) {
 			toast.success('Member removed');
-			await loadWorkspace();
+			await invalidateAll();
 		} else {
 			toast.error('Failed to remove member');
 		}
@@ -121,6 +89,7 @@
 			toast.success('Workspace deleted');
 			confirmDelete = false;
 			await workspaceStore.load();
+			await invalidateAll();
 		} else {
 			toast.error('Failed to delete workspace');
 		}
@@ -136,18 +105,7 @@
 <div class="container mx-auto max-w-3xl space-y-6 p-6">
 	<h1 class="text-2xl font-bold">Workspace Settings</h1>
 
-	{#if loading}
-		<Card.Root>
-			<Card.Content class="p-6">
-				<div class="animate-pulse space-y-4">
-					<div class="h-4 bg-muted rounded w-1/3"></div>
-					<div class="h-10 bg-muted rounded"></div>
-					<div class="h-4 bg-muted rounded w-1/4"></div>
-					<div class="h-20 bg-muted rounded"></div>
-				</div>
-			</Card.Content>
-		</Card.Root>
-	{:else if workspace}
+	{#if workspace}
 		<!-- Details Card -->
 		<Card.Root>
 			<Card.Header>

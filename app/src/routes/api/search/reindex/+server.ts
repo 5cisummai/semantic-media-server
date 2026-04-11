@@ -1,11 +1,10 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { reindexSemanticCollection } from '$lib/server/semantic';
+import { requireAdmin } from '$lib/server/api';
 
 export const POST: RequestHandler = async ({ locals }) => {
-	if (locals.user?.role !== 'ADMIN') {
-		throw error(403, 'Forbidden');
-	}
+	await requireAdmin(locals);
 
 	try {
 		const summary = await reindexSemanticCollection();

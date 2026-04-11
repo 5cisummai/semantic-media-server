@@ -13,7 +13,6 @@ declare global {
 			};
 		}
 		interface PageData {
-			fileTree?: unknown[];
 			user?: {
 				id: string;
 				username: string;

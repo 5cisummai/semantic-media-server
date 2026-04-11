@@ -46,3 +46,5 @@ __pycache__/
 *.pyd
 env/
 .venv/
+
+.playwright-mcp

@@ -4,6 +4,7 @@ import {
 	updateWorkspace,
 	deleteWorkspace
 } from '$lib/server/services/workspace';
+import { parseBody, updateWorkspaceSchema } from '$lib/server/api';
 import { requireWorkspaceAccess } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
 
@@ -19,17 +20,9 @@ export const GET: RequestHandler = async (event) => {
 	}
 };
 
-interface UpdateWorkspaceBody {
-	name?: string;
-	slug?: string;
-	description?: string;
-}
-
 export const PATCH: RequestHandler = async (event) => {
 	const { workspaceId } = await requireWorkspaceAccess(event, 'ADMIN');
-
-	const body = (await event.request.json().catch(() => null)) as UpdateWorkspaceBody | null;
-	if (!body) throw error(400, 'Invalid JSON body');
+	const body = await parseBody(event.request, updateWorkspaceSchema);
 
 	try {
 		await updateWorkspace(workspaceId, body);
@@ -48,6 +41,6 @@ export const DELETE: RequestHandler = async (event) => {
 		return json({ ok: true });
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : 'Failed to delete workspace';
-		throw error(400, msg);
+		throw error(msg.startsWith('Failed to remove workspace storage:') ? 500 : 400, msg);
 	}
 };

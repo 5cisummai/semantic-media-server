@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { invalidateAll } from '$app/navigation';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import { Button } from '$lib/components/ui/button';
@@ -7,6 +8,7 @@
 	import { Card } from '$lib/components/ui/card';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Progress from '$lib/components/ui/progress/index.js';
+	import { apiFetch } from '$lib/api-fetch';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import InfoIcon from '@lucide/svelte/icons/info';
@@ -23,26 +25,9 @@
 		setAutoApproveSettingEnabled,
 		type AutoApproveSettingId
 	} from '$lib/agent-auto-approve';
+	import type { PageData } from './$types';
 
-	interface DriveInfo {
-		index: number;
-		path: string;
-		name: string;
-		available: boolean;
-		totalBytes?: number;
-		usedBytes?: number;
-		freeBytes?: number;
-		usedPercent?: number;
-	}
-
-	interface User {
-		id: string;
-		username: string;
-		displayName: string;
-		role: string;
-		approved: boolean;
-		createdAt: string;
-	}
+	let { data }: { data: PageData } = $props();
 
 	function formatBytes(bytes: number): string {
 		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -55,11 +40,10 @@
 		return `${size.toFixed(1)} ${units[unitIndex]}`;
 	}
 
-	let drives = $state<DriveInfo[]>([]);
-	let users = $state<User[]>([]);
-	let pendingUsers = $state<User[]>([]);
-	let isAdmin = $state(false);
-	let loading = $state(true);
+	const drives = $derived(data.drives);
+	const users = $derived(data.users);
+	const pendingUsers = $derived(data.pendingUsers);
+	const isAdmin = $derived(data.isAdmin);
 	let reindexing = $state(false);
 	let reindexStatus = $state<'idle' | 'success' | 'error'>('idle');
 
@@ -85,46 +69,15 @@
 		};
 	}
 
-	async function loadData() {
-		if (!browser) return;
-		const token = localStorage.getItem('accessToken');
-		const role = localStorage.getItem('role');
-		isAdmin = role === 'ADMIN';
-
-		try {
-			const [drivesRes, usersRes] = await Promise.all([
-				fetch('/api/storage'),
-				fetch('/api/auth/users')
-			]);
-
-			if (drivesRes.ok) {
-				drives = await drivesRes.json();
-			}
-			if (usersRes.ok) {
-				users = await usersRes.json();
-			}
-			if (isAdmin) {
-				const pendingRes = await fetch('/api/auth/pending');
-				if (pendingRes.ok) {
-					pendingUsers = await pendingRes.json();
-				}
-			}
-		} catch (e) {
-			console.error('Failed to load settings data', e);
-		} finally {
-			loading = false;
-		}
-	}
-
 	async function approveUser(userId: string) {
 		try {
-			const res = await fetch('/api/auth/approve', {
+			const res = await apiFetch('/api/auth/approve', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ userId })
 			});
 			if (res.ok) {
-				pendingUsers = pendingUsers.filter((u) => u.id !== userId);
+				await invalidateAll();
 			}
 		} catch (e) {
 			console.error('Failed to approve user', e);
@@ -133,13 +86,13 @@
 
 	async function rejectUser(userId: string) {
 		try {
-			const res = await fetch('/api/auth/approve', {
+			const res = await apiFetch('/api/auth/approve', {
 				method: 'DELETE',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ userId })
 			});
 			if (res.ok) {
-				pendingUsers = pendingUsers.filter((u) => u.id !== userId);
+				await invalidateAll();
 			}
 		} catch (e) {
 			console.error('Failed to reject user', e);
@@ -150,7 +103,7 @@
 		reindexing = true;
 		reindexStatus = 'idle';
 		try {
-			const res = await fetch('/api/search/reindex', { method: 'POST' });
+			const res = await apiFetch('/api/search/reindex', { method: 'POST' });
 			if (res.ok) {
 				const data = await res.json();
 				reindexStatus = 'success';
@@ -171,7 +124,7 @@
 		ingestStatus = 'idle';
 		ingestMessage = null;
 		try {
-			const res = await fetch('/api/ingest/directory', {
+			const res = await apiFetch('/api/ingest/directory', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ rootIndex })
@@ -206,7 +159,6 @@
 
 	if (browser) {
 		syncAgentAutoApproveFromStorage();
-		loadData();
 	}
 
 	$effect(() => {
@@ -248,9 +200,7 @@
 			</Tabs.List>
 
 			<Tabs.Content value="storage" class="space-y-4">
-				{#if loading}
-					<p class="text-sm text-muted-foreground">Loading storage info...</p>
-				{:else if drives.length === 0}
+				{#if drives.length === 0}
 					<p class="text-sm text-muted-foreground">No storage drives configured.</p>
 				{:else}
 					<div class="space-y-4">
@@ -385,73 +335,69 @@
 			</Tabs.Content>
 
 			<Tabs.Content value="users" class="space-y-4">
-				{#if loading}
-					<p class="text-sm text-muted-foreground">Loading users...</p>
-				{:else}
-					<div class="rounded-md border">
-						<Table.Root>
-							<Table.Header>
+				<div class="rounded-md border">
+					<Table.Root>
+						<Table.Header>
+							<Table.Row>
+								<Table.Head>Username</Table.Head>
+								<Table.Head>Display Name</Table.Head>
+								<Table.Head>Role</Table.Head>
+								<Table.Head>Status</Table.Head>
+							</Table.Row>
+						</Table.Header>
+						<Table.Body>
+							{#each users as user}
 								<Table.Row>
-									<Table.Head>Username</Table.Head>
-									<Table.Head>Display Name</Table.Head>
-									<Table.Head>Role</Table.Head>
-									<Table.Head>Status</Table.Head>
+									<Table.Cell>{user.username}</Table.Cell>
+									<Table.Cell>{user.displayName}</Table.Cell>
+									<Table.Cell>
+										<Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>
+											{user.role}
+										</Badge>
+									</Table.Cell>
+									<Table.Cell>
+										<Badge variant={user.approved ? 'outline' : 'secondary'}>
+											{user.approved ? 'Active' : 'Pending'}
+										</Badge>
+									</Table.Cell>
 								</Table.Row>
-							</Table.Header>
-							<Table.Body>
-								{#each users as user}
-									<Table.Row>
-										<Table.Cell>{user.username}</Table.Cell>
-										<Table.Cell>{user.displayName}</Table.Cell>
-										<Table.Cell>
-											<Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>
-												{user.role}
-											</Badge>
-										</Table.Cell>
-										<Table.Cell>
-											<Badge variant={user.approved ? 'outline' : 'secondary'}>
-												{user.approved ? 'Active' : 'Pending'}
-											</Badge>
-										</Table.Cell>
-									</Table.Row>
-								{/each}
-							</Table.Body>
-						</Table.Root>
-					</div>
-
-					{#if isAdmin && pendingUsers.length > 0}
-						<div class="space-y-3">
-							<h3 class="text-sm font-medium">Pending Users</h3>
-							{#each pendingUsers as pending}
-								<Card class="flex items-center justify-between p-4">
-									<div>
-										<p class="font-medium">{pending.displayName}</p>
-										<p class="text-sm text-muted-foreground">@{pending.username}</p>
-									</div>
-									<div class="flex gap-2">
-										<Button
-										variant="outline"
-										size="sm"
-										class="text-green-600 border-green-500/30 hover:bg-green-500/10"
-										onclick={() => approveUser(pending.id)}
-									>
-										<CheckIcon class="size-4" />
-										Accept
-									</Button>
-										<Button
-										variant="outline"
-										size="sm"
-										class="text-destructive border-destructive/30 hover:bg-destructive/10"
-										onclick={() => rejectUser(pending.id)}
-									>
-										<XIcon class="size-4" />
-										Reject
-									</Button>
-									</div>
-								</Card>
 							{/each}
-						</div>
-					{/if}
+						</Table.Body>
+					</Table.Root>
+				</div>
+
+				{#if isAdmin && pendingUsers.length > 0}
+					<div class="space-y-3">
+						<h3 class="text-sm font-medium">Pending Users</h3>
+						{#each pendingUsers as pending}
+							<Card class="flex items-center justify-between p-4">
+								<div>
+									<p class="font-medium">{pending.displayName}</p>
+									<p class="text-sm text-muted-foreground">@{pending.username}</p>
+								</div>
+								<div class="flex gap-2">
+									<Button
+									variant="outline"
+									size="sm"
+									class="text-green-600 border-green-500/30 hover:bg-green-500/10"
+									onclick={() => approveUser(pending.id)}
+								>
+									<CheckIcon class="size-4" />
+									Accept
+								</Button>
+									<Button
+									variant="outline"
+									size="sm"
+									class="text-destructive border-destructive/30 hover:bg-destructive/10"
+									onclick={() => rejectUser(pending.id)}
+								>
+									<XIcon class="size-4" />
+									Reject
+								</Button>
+								</div>
+							</Card>
+						{/each}
+					</div>
 				{/if}
 			</Tabs.Content>
 

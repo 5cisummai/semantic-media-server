@@ -15,6 +15,17 @@ export interface MediaEntry {
 	mimeType?: string;
 }
 
+export interface DriveInfo {
+	index: number;
+	path: string;
+	name: string;
+	available: boolean;
+	totalBytes?: number;
+	usedBytes?: number;
+	freeBytes?: number;
+	usedPercent?: number;
+}
+
 const MEDIA_EXTENSIONS: Record<string, { mediaType: MediaType; mimeType: string }> = {
 	// Video
 	mp4: { mediaType: 'video', mimeType: 'video/mp4' },
@@ -101,6 +112,42 @@ export function getMediaInfo(filename: string) {
 			mediaType: 'other' as MediaType,
 			mimeType: 'application/octet-stream'
 		}
+	);
+}
+
+export async function getStorageDrives(): Promise<DriveInfo[]> {
+	const roots = getMediaRoots();
+
+	return Promise.all(
+		roots.map(async (root, index) => {
+			const name = path.basename(root) || root;
+
+			try {
+				const stat = await fs.statfs(root);
+				const totalBytes = stat.blocks * stat.bsize;
+				const freeBytes = stat.bfree * stat.bsize;
+				const usedBytes = totalBytes - freeBytes;
+				const usedPercent = Math.round((usedBytes / totalBytes) * 100);
+
+				return {
+					index,
+					path: root,
+					name,
+					available: true,
+					totalBytes,
+					usedBytes,
+					freeBytes,
+					usedPercent
+				} satisfies DriveInfo;
+			} catch {
+				return {
+					index,
+					path: root,
+					name,
+					available: false
+				} satisfies DriveInfo;
+			}
+		})
 	);
 }
 

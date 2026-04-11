@@ -7,7 +7,8 @@ export {
 	addMemberSchema,
 	updateRoleSchema,
 	updateWorkspaceSchema,
-	createWorkspaceSchema
+	createWorkspaceSchema,
+	ingestDirectorySchema
 } from './validation';
 export { audit, type AuditAction } from './audit';
 export { safeErrorResponse, notFoundResponse, operationFailedResponse } from './errors';

@@ -1,25 +1,18 @@
 import { error, json } from '@sveltejs/kit';
 import { updateMemberRole, removeMember } from '$lib/server/services/workspace';
+import { parseBody, updateRoleSchema } from '$lib/server/api';
 import { requireWorkspaceAccess } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
-
-interface UpdateRoleBody {
-	role?: string;
-}
 
 export const PATCH: RequestHandler = async (event) => {
 	const { workspaceId } = await requireWorkspaceAccess(event, 'ADMIN');
 
 	const targetUserId = event.params.userId;
 	if (!targetUserId) throw error(400, 'userId is required');
-
-	const body = (await event.request.json().catch(() => null)) as UpdateRoleBody | null;
-	if (!body?.role) throw error(400, 'role is required');
-
-	const role = body.role === 'ADMIN' ? 'ADMIN' : body.role === 'VIEWER' ? 'VIEWER' : 'MEMBER';
+	const body = await parseBody(event.request, updateRoleSchema);
 
 	try {
-		await updateMemberRole(workspaceId, targetUserId, role);
+		await updateMemberRole(workspaceId, targetUserId, body.role);
 		return json({ ok: true });
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : 'Failed to update member role';

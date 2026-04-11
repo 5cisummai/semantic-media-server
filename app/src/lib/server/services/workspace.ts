@@ -1,5 +1,6 @@
 import { db } from '$lib/server/db';
 import type { WorkspaceRole } from '@prisma/client';
+import { ensureWorkspaceDir, removeWorkspaceStorage } from '$lib/server/services/workspace-storage';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,7 +35,7 @@ export interface WorkspaceMemberInfo {
 // ---------------------------------------------------------------------------
 
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const DEFAULT_WORKSPACE_SLUG = 'default';
+export const DEFAULT_WORKSPACE_SLUG = 'default';
 
 // Role hierarchy for permission checks (higher index = more powerful)
 const ROLE_HIERARCHY: WorkspaceRole[] = ['VIEWER', 'MEMBER', 'ADMIN'];
@@ -84,6 +85,26 @@ export async function createWorkspace(
 			_count: { select: { members: true } }
 		}
 	});
+
+	try {
+		await ensureWorkspaceDir(workspace.id);
+	} catch (storageError) {
+		try {
+			await db.workspace.delete({ where: { id: workspace.id } });
+		} catch (rollbackError) {
+			const storageMessage =
+				storageError instanceof Error ? storageError.message : 'Unknown storage error';
+			const rollbackMessage =
+				rollbackError instanceof Error ? rollbackError.message : 'Unknown rollback error';
+			throw new Error(
+				`Failed to initialize workspace storage: ${storageMessage}. Rollback failed: ${rollbackMessage}`
+			);
+		}
+
+		const storageMessage =
+			storageError instanceof Error ? storageError.message : 'Unknown storage error';
+		throw new Error(`Failed to initialize workspace storage: ${storageMessage}`);
+	}
 
 	return {
 		id: workspace.id,
@@ -170,12 +191,14 @@ export async function listWorkspacesForUser(userId: string): Promise<WorkspaceSu
 
 export async function updateWorkspace(
 	workspaceId: string,
-	data: { name?: string; description?: string; slug?: string }
+	data: { name?: string; description?: string | null; slug?: string }
 ): Promise<void> {
 	const update: Record<string, unknown> = {};
 
 	if (data.name !== undefined) update.name = data.name.trim();
-	if (data.description !== undefined) update.description = data.description.trim() || null;
+	if (data.description !== undefined) {
+		update.description = data.description === null ? null : data.description.trim() || null;
+	}
 	if (data.slug !== undefined) {
 		validateSlug(data.slug);
 		update.slug = data.slug;
@@ -197,6 +220,13 @@ export async function deleteWorkspace(workspaceId: string): Promise<void> {
 	}
 
 	await db.workspace.delete({ where: { id: workspaceId } });
+	try {
+		await removeWorkspaceStorage(workspaceId);
+	} catch (storageError) {
+		const storageMessage =
+			storageError instanceof Error ? storageError.message : 'Unknown storage error';
+		throw new Error(`Failed to remove workspace storage: ${storageMessage}`);
+	}
 }
 
 // ---------------------------------------------------------------------------

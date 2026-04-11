@@ -1,11 +1,12 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { apiFetch } from '$lib/api-fetch';
-	import { workspaceStore } from '$lib/hooks/workspace.svelte';
+	import { workspaceStore, type WorkspaceSummary } from '$lib/hooks/workspace.svelte';
 	import { toast } from 'svelte-sonner';
 
 	let { open = $bindable(false) }: { open: boolean } = $props();
@@ -43,10 +44,11 @@
 				})
 			});
 			if (res.ok) {
-				const ws = await res.json();
-				workspaceStore.addWorkspace(ws);
-				workspaceStore.select(ws.id);
-				toast.success(`Workspace "${ws.name}" created`);
+				const { workspace } = (await res.json()) as { workspace: WorkspaceSummary };
+				workspaceStore.addWorkspace(workspace);
+				workspaceStore.select(workspace.id);
+				await invalidateAll();
+				toast.success(`Workspace "${workspace.name}" created`);
 				open = false;
 				name = slug = description = '';
 				autoSlug = true;
