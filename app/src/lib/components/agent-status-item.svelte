@@ -11,7 +11,14 @@
 	import CircleDotIcon from '@lucide/svelte/icons/circle-dot';
 	import type { ItemSize, ItemVariant } from '$lib/components/ui/item/item.svelte';
 
-	type RunStatus = 'idle' | 'queued' | 'running' | 'working' | 'done' | 'failed' | 'awaiting_confirmation';
+	type RunStatus =
+		| 'idle'
+		| 'queued'
+		| 'running'
+		| 'working'
+		| 'done'
+		| 'failed'
+		| 'awaiting_confirmation';
 
 	interface RunData {
 		id: string;
@@ -31,15 +38,27 @@
 		description,
 		/** If provided, the whole item becomes a link. */
 		href,
+		/** In-page action (use with or without `href`; call `preventDefault` if needed). */
+		onclick,
+		/**
+		 * Last-known session status from API or local UI (e.g. active chat).
+		 * Merged with live `agentSessions` when `chatId` is set.
+		 */
+		sessionStatus,
+		/** Icon-only row (e.g. app sidebar collapsed to icons). */
+		compact = false,
 		size = 'default',
 		variant = 'default',
-		class: className,
+		class: className
 	}: {
 		runId?: string;
 		chatId?: string;
 		name?: string;
 		description?: string;
 		href?: string;
+		onclick?: (e: MouseEvent) => void;
+		sessionStatus?: 'idle' | 'working' | 'done';
+		compact?: boolean;
 		size?: ItemSize;
 		variant?: ItemVariant;
 		class?: string;
@@ -100,16 +119,18 @@
 			return s;
 		}
 		if (chatId) {
-			const s = agentSessions.getStatus(chatId);
-			return s === 'working' ? 'working' : 'idle';
+			if (agentSessions.getStatus(chatId) === 'working') return 'working';
+			if (sessionStatus === 'working') return 'working';
+			if (sessionStatus === 'done') return 'done';
+			return 'idle';
 		}
 		return 'idle';
 	});
 
 	const isActive = $derived(
 		resolvedStatus() === 'working' ||
-		resolvedStatus() === 'queued' ||
-		resolvedStatus() === 'running'
+			resolvedStatus() === 'queued' ||
+			resolvedStatus() === 'running'
 	);
 	const isDone = $derived(resolvedStatus() === 'done');
 	const isFailed = $derived(resolvedStatus() === 'failed');
@@ -119,17 +140,25 @@
 	const displayName = $derived(name || run?.kind || 'Agent');
 
 	// Resolved description — prefer explicit prop, then derive from status
-	const displayDescription = $derived(description ?? statusLabel(resolvedStatus()));
+	const displayDescription = $derived(
+		compact ? undefined : (description ?? statusLabel(resolvedStatus()))
+	);
 
 	function statusLabel(status: RunStatus): string {
 		switch (status) {
-			case 'queued': return 'Queued…';
+			case 'queued':
+				return 'Queued…';
 			case 'running':
-			case 'working': return 'Running…';
-			case 'done': return 'Completed';
-			case 'failed': return 'Failed';
-			case 'awaiting_confirmation': return 'Awaiting confirmation';
-			default: return 'Idle';
+			case 'working':
+				return 'Running…';
+			case 'done':
+				return 'Completed';
+			case 'failed':
+				return 'Failed';
+			case 'awaiting_confirmation':
+				return 'Awaiting confirmation';
+			default:
+				return 'Idle';
 		}
 	}
 </script>
@@ -143,14 +172,38 @@
 	  name    — display label (defaults to run kind or "Agent")
 	  href    — makes the item a link
 -->
-<Item.Root {size} {variant} class={className}>
+<Item.Root
+	{size}
+	{variant}
+	class={cn(
+		compact && 'min-h-8 justify-center gap-0 border-transparent px-2 py-1.5 [&:has(a)]:justify-center',
+		className
+	)}
+>
 	{#snippet child({ props })}
 		{#if href}
-			<a {...props} {href}>
+			<!-- eslint-disable svelte/no-navigation-without-resolve -->
+			<a
+				{...props}
+				{href}
+				title={compact ? displayName : undefined}
+				onclick={(e) => {
+					(props.onclick as ((ev: MouseEvent) => void) | undefined)?.(e);
+					onclick?.(e);
+				}}
+			>
 				{@render content()}
 			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		{:else}
-			<div {...props}>
+			<div
+				{...props}
+				title={compact ? displayName : undefined}
+				onclick={(e) => {
+					(props.onclick as ((ev: MouseEvent) => void) | undefined)?.(e);
+					onclick?.(e);
+				}}
+			>
 				{@render content()}
 			</div>
 		{/if}
@@ -161,43 +214,35 @@
 	<Item.Media variant="icon">
 		{#if isActive}
 			<!-- Spinning loader ring -->
-			<LoaderCircleIcon
-				class="size-4 animate-spin text-amber-500"
-				aria-label="Running"
-			/>
+			<LoaderCircleIcon class="size-4 animate-spin text-amber-500" aria-label="Running" />
 		{:else if isDone}
-			<CheckCircle2Icon
-				class="size-4 text-green-500"
-				aria-label="Done"
-			/>
+			<CheckCircle2Icon class="size-4 text-green-500" aria-label="Done" />
 		{:else if isFailed}
-			<XCircleIcon
-				class="size-4 text-destructive"
-				aria-label="Failed"
-			/>
+			<XCircleIcon class="size-4 text-destructive" aria-label="Failed" />
 		{:else if isAwaiting}
 			<AlertCircleIcon
 				class="size-4 animate-pulse text-amber-400"
 				aria-label="Awaiting confirmation"
 			/>
 		{:else}
-			<CircleDotIcon
-				class="size-4 text-muted-foreground/50"
-				aria-label="Idle"
-			/>
+			<CircleDotIcon class="size-4 text-muted-foreground/50" aria-label="Idle" />
 		{/if}
 	</Item.Media>
 
-	<Item.Header>
-		<Item.Title>{displayName}</Item.Title>
-		{#if displayDescription}
-			<Item.Description class={cn(
-				isFailed && 'text-destructive',
-				isDone && 'text-green-600 dark:text-green-400',
-				isAwaiting && 'text-amber-600 dark:text-amber-400',
-			)}>
-				{isFailed && run?.error ? run.error : displayDescription}
-			</Item.Description>
-		{/if}
-	</Item.Header>
+	{#if !compact}
+		<Item.Header>
+			<Item.Title>{displayName}</Item.Title>
+			{#if displayDescription}
+				<Item.Description
+					class={cn(
+						isFailed && 'text-destructive',
+						isDone && 'text-green-600 dark:text-green-400',
+						isAwaiting && 'text-amber-600 dark:text-amber-400'
+					)}
+				>
+					{isFailed && run?.error ? run.error : displayDescription}
+				</Item.Description>
+			{/if}
+		</Item.Header>
+	{/if}
 {/snippet}

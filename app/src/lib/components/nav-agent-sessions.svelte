@@ -3,11 +3,17 @@
 	import { agentSessions } from '$lib/hooks/agent-sessions.svelte';
 	import AgentStatusItem from '$lib/components/agent-status-item.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
+	import { useSidebar } from '$lib/components/ui/sidebar/context.svelte.js';
+
+	const sidebar = useSidebar();
+	const compact = $derived(!sidebar.isMobile && sidebar.state === 'collapsed');
 
 	interface AgentSession {
 		id: string;
 		title: string;
 		updatedAt: string;
+		status?: 'idle' | 'working' | 'done';
 	}
 
 	let sessions = $state<AgentSession[]>([]);
@@ -41,12 +47,32 @@
 		<Sidebar.Menu>
 			{#each sorted as session (session.id)}
 				<Sidebar.MenuItem>
-					<AgentStatusItem
-						chatId={session.id}
-						name={session.title || 'Agent session'}
-						href={`/chat?agent=${encodeURIComponent(session.id)}`}
-						size="xs"
-					/>
+					{#if compact}
+						<Tooltip.Root delayDuration={300}>
+							<Tooltip.Trigger class="w-full">
+								<AgentStatusItem
+									chatId={session.id}
+									name={session.title || 'Agent session'}
+									href={`/chat?agent=${encodeURIComponent(session.id)}`}
+									sessionStatus={session.status}
+									size="xs"
+									compact
+								/>
+							</Tooltip.Trigger>
+							<Tooltip.Content side="right" align="center" class="max-w-xs">
+								<p class="font-medium">{session.title || 'Agent session'}</p>
+								<p class="text-xs text-muted-foreground">Open session</p>
+							</Tooltip.Content>
+						</Tooltip.Root>
+					{:else}
+						<AgentStatusItem
+							chatId={session.id}
+							name={session.title || 'Agent session'}
+							href={`/chat?agent=${encodeURIComponent(session.id)}`}
+							sessionStatus={session.status}
+							size="xs"
+						/>
+					{/if}
 				</Sidebar.MenuItem>
 			{/each}
 		</Sidebar.Menu>

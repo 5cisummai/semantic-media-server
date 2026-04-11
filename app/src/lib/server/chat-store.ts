@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import type { Prisma } from '@prisma/client';
-import type { LlmMessage } from '$lib/server/services/llm';
+import type { ConversationMessage } from '$lib/server/agent/types';
 
 const UNTITLED_CHAT = 'New chat';
 const MAX_TITLE_LENGTH = 120;
@@ -81,7 +81,7 @@ function toStoredMessage(row: ChatMessageRow): StoredChatMessage {
 	};
 }
 
-export function messagesToLlmHistory(messages: StoredChatMessage[]): LlmMessage[] {
+export function messagesToLlmHistory(messages: StoredChatMessage[]): ConversationMessage[] {
 	return messages.map((message) => ({
 		role: message.role,
 		content: message.content

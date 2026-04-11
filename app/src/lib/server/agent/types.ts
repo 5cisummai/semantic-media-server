@@ -39,32 +39,19 @@ export interface ToolCallSummary {
 
 export interface AgentRequest {
 	question: string;
-	history?: LlmMessageLike[];
+	history?: ConversationMessage[];
 	filters?: AskFilters;
-	/** Resume after user confirmed / declined a mutating tool. */
-	continuation?: AgentContinuation;
 	/**
 	 * Tool names the client has opted to run without confirmation (browser preference).
-	 * Server only honors names that are mutating tools with requiresConfirmation.
+	 * Server only honors names that are mutating tools with needsApproval.
 	 */
 	autoApproveToolNames?: string[];
 }
 
-export interface AgentContinuation {
-	messages: LlmMessageLike[];
-	filters: AskFilters;
-	startIteration: number;
-	toolCallsSoFar: ToolCallSummary[];
-	sources: Source[];
-}
-
-/** Minimal message shape the agent loop accepts (matches LlmMessage). */
-export interface LlmMessageLike {
-	role: 'system' | 'user' | 'assistant' | 'tool';
+/** Minimal chat message shape (user/assistant only — persisted in DB). */
+export interface ConversationMessage {
+	role: 'user' | 'assistant';
 	content: string;
-	tool_call_id?: string;
-	name?: string;
-	tool_calls?: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -75,7 +62,6 @@ export type AgentOutcome = AgentComplete | AgentPendingConfirmation;
 
 export interface AgentComplete {
 	kind: 'complete';
-	messages: LlmMessageLike[];
 	sources: Map<string, Source>;
 	toolCalls: ToolCallSummary[];
 	iterations: number;
@@ -87,7 +73,6 @@ export interface AgentPendingConfirmation {
 	pendingId: string;
 	tool: string;
 	args: Record<string, unknown>;
-	toolCallId: string;
 	toolCallsSoFar: ToolCallSummary[];
 	sources: Map<string, Source>;
 	iterations: number;
@@ -103,7 +88,7 @@ export type AgentEvent =
 	| { type: 'tool_thinking'; tool: string; thinking: string }
 	| { type: 'token'; text: string }
 	| { type: 'meta'; payload: AgentMetaPayload }
-	| { type: 'confirmation_required'; pendingId: string; tool: string; args: Record<string, unknown>; toolCallId: string; chatId: string }
+	| { type: 'confirmation_required'; pendingId: string; tool: string; args: Record<string, unknown>; chatId: string }
 	| { type: 'message_saved'; role: 'user' | 'assistant'; id: string }
 	| { type: 'error'; message: string; code?: string }
 	| { type: 'done' };
@@ -128,7 +113,6 @@ export interface AgentRunConfig {
 	userId: string;
 	isAdmin: boolean;
 	chatId?: string;
-	/** Workspace scope for this run. */
 	workspaceId?: string;
 	mode: TransportMode;
 	/** When true, replay the last user message instead of appending a new one. */
@@ -145,10 +129,8 @@ export interface ConfirmRunConfig {
 	pendingId: string;
 	approved: boolean;
 	chatId?: string;
-	/** Workspace scope for this run. */
 	workspaceId?: string;
 	mode: TransportMode;
-	/** Same as AgentRunConfig — forwarded so resumed runs honor auto-approve for later tools. */
 	autoApproveToolNames?: string[];
 }
 
@@ -159,3 +141,5 @@ export interface ConfirmRunConfig {
 export const DEFAULT_LIMIT = 8;
 export const DEFAULT_MIN_SCORE = 0.5;
 export const MAX_AGENT_ITERATIONS = 20;
+
+

@@ -1,12 +1,9 @@
 <script lang="ts">
-	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import PanelLeftCloseIcon from '@lucide/svelte/icons/panel-left-close';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import PanelLeftOpenIcon from '@lucide/svelte/icons/panel-left-open';
-	import LoaderIcon from '@lucide/svelte/icons/loader';
-	import CheckCircleIcon from '@lucide/svelte/icons/check-circle';
-	import CircleIcon from '@lucide/svelte/icons/circle';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import AgentStatusItem from '$lib/components/agent-status-item.svelte';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import { onMount, tick } from 'svelte';
 	import ChatLlm from '$lib/components/chat-llm/index.svelte';
@@ -154,13 +151,6 @@
 		})();
 	});
 
-	function getAgentStatus(agentId: string): 'idle' | 'working' | 'done' {
-		if (agentId === activeAgentId) {
-			return activeAgentStatus;
-		}
-		const agent = agents.find(a => a.id === agentId);
-		return agent?.status ?? 'idle';
-	}
 </script>
 
 {#snippet agentsPanel()}
@@ -201,31 +191,22 @@
 							<Sidebar.MenuItem>
 								<ContextMenu.Root>
 									<ContextMenu.Trigger class="w-full">
-										<Sidebar.MenuButton
+										<AgentStatusItem
+											chatId={agent.id}
+											name={agent.title}
+											description="{agent.messageCount} message{agent.messageCount === 1
+												? ''
+												: 's'} · {relativeTimestamp(agent.updatedAt)}"
+											sessionStatus={agent.id === activeAgentId
+												? activeAgentStatus
+												: agent.status}
 											variant={agent.id === activeAgentId ? 'outline' : 'default'}
-											class="h-auto w-full items-start py-2"
-											isActive={agent.id === activeAgentId}
-											onclick={() => selectAgent(agent.id)}
-										>
-											<div class="flex items-center gap-2">
-												{#if getAgentStatus(agent.id) === 'working'}
-													<LoaderIcon class="size-4 animate-spin text-muted-foreground" />
-												{:else if getAgentStatus(agent.id) === 'done'}
-													<CheckCircleIcon class="size-4 text-green-500" />
-												{:else}
-													<CircleIcon class="size-4 text-muted-foreground/50" />
-												{/if}
-												<span class="truncate text-sm font-medium">{agent.title}</span>
-											</div>
-											<span
-												class="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground"
-											>
-												<MessageSquareIcon class="size-3" />
-												<span>{agent.messageCount}</span>
-												<span>·</span>
-												<span>{relativeTimestamp(agent.updatedAt)}</span>
-											</span>
-										</Sidebar.MenuButton>
+											size="xs"
+											class="w-full cursor-pointer"
+											onclick={() => {
+												void selectAgent(agent.id);
+											}}
+										/>
 									</ContextMenu.Trigger>
 									<ContextMenu.Content class="w-48">
 										<ContextMenu.Item onclick={() => selectAgent(agent.id)}>

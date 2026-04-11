@@ -1,24 +1,16 @@
 // ---------------------------------------------------------------------------
-// agent/tools/index.ts — Public API: default registry factory
+// agent/tools/index.ts — Public API: flat SDK tool array factory
 // ---------------------------------------------------------------------------
 
-export { ToolRegistry } from './registry';
-export type { ToolDefinition, ToolHandler, ToolResult, ToolExecutionContext } from './types';
-
-import { ToolRegistry } from './registry';
+import type { Tool } from '@openai/agents';
+import type { AgentAppContext } from '../context';
 import { searchTool } from './search';
 import { listDirectoryTool, getFileInfoTool, readFileTool } from './filesystem';
 import { searchByMetadataTool } from './metadata';
 import { deleteFileTool, moveFileTool, moveFilesTool, copyFileTool, mkdirTool } from './mutations';
 
-/**
- * Create a ToolRegistry pre-loaded with all built-in tools.
- *
- * Call this once per process (or per test). The registry is stateless
- * so a singleton is fine, but the factory pattern lets tests swap tools.
- */
-export function createDefaultRegistry(): ToolRegistry {
-	return new ToolRegistry().registerAll([
+export function createDefaultTools(): Tool<AgentAppContext>[] {
+	return [
 		searchTool,
 		listDirectoryTool,
 		getFileInfoTool,
@@ -29,5 +21,5 @@ export function createDefaultRegistry(): ToolRegistry {
 		moveFilesTool,
 		copyFileTool,
 		mkdirTool
-	]);
+	];
 }

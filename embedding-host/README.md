@@ -1,13 +1,13 @@
-# Embedding Host (Qwen3-VL)
+# Embedding Host (GGUF)
 
-This service hosts a local multimodal embedding endpoint for semantic search.
+Local text embedding endpoint (`llama-cpp-python`). Image requests return 400 (text-only GGUF).
 
 ## API Contract
 
 - `POST /embed`
 - Request JSON:
-  - Text: `{ "model": "Qwen/Qwen3-VL-Embedding-2B", "type": "text", "text": "..." }`
-  - Image: `{ "model": "Qwen/Qwen3-VL-Embedding-2B", "type": "image", "imageBase64": "...", "filename": "..." }`
+  - Text: `{ "model": "<HF repo or local .gguf path>", "type": "text", "text": "..." }`
+  - Image: not supported with this backend (400).
 - Response JSON:
   - `{ "embedding": [0.1, 0.2, ...] }`
 
@@ -26,19 +26,21 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. Optional Hugging Face auth token (if needed):
+3. Configure `.env` (see `.env.example`): set `GGUF_FILENAME` to the quantized file in the repo.
+
+4. Optional Hugging Face auth token (if needed for download):
 
 ```bash
 export HF_TOKEN=your_hf_token
 ```
 
-4. Run server:
+5. Run server:
 
 ```bash
 uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-5. Health check:
+6. Health check:
 
 ```bash
 curl http://127.0.0.1:8000/health
@@ -51,16 +53,7 @@ Text embedding:
 ```bash
 curl -X POST http://127.0.0.1:8000/embed \
   -H "Content-Type: application/json" \
-  -d '{"model":"Qwen/Qwen3-VL-Embedding-2B","type":"text","text":"sunset over ocean"}'
-```
-
-Image embedding:
-
-```bash
-IMG_B64=$(base64 -i /path/to/image.jpg | tr -d '\n')
-curl -X POST http://127.0.0.1:8000/embed \
-  -H "Content-Type: application/json" \
-  -d "{\"model\":\"Qwen/Qwen3-VL-Embedding-2B\",\"type\":\"image\",\"imageBase64\":\"$IMG_B64\",\"filename\":\"image.jpg\"}"
+  -d '{"model":"DevQuasar/Qwen.Qwen3-VL-Embedding-2B-GGUF","type":"text","text":"sunset over ocean"}'
 ```
 
 ## App Integration
@@ -70,5 +63,5 @@ In your main app `.env`:
 ```env
 EMBEDDING_PROVIDER=multimodal
 MULTIMODAL_EMBEDDING_URL=http://127.0.0.1:8000/embed
-MULTIMODAL_EMBEDDING_MODEL=Qwen/Qwen3-VL-Embedding-2B
+MULTIMODAL_EMBEDDING_MODEL=DevQuasar/Qwen.Qwen3-VL-Embedding-2B-GGUF
 ```

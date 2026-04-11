@@ -15,7 +15,7 @@ import {
 	supersedeOtherRunsForChat,
 	appendRunStep
 } from '$lib/server/agent-runs';
-import type { AgentContext } from '../context';
+import type { AgentAppContext } from '../context';
 import type { AgentRequest, AgentEvent } from '../types';
 import { errorMessage } from '../errors';
 
@@ -32,50 +32,44 @@ export interface BackgroundRunResult {
  */
 export async function startBackgroundRun(
 	request: AgentRequest,
-	ctx: AgentContext,
+	appCtx: AgentAppContext,
 	opts: {
 		chatId: string;
 		kind: 'ask' | 'confirm';
 		savedUserMessageId?: string | null;
 	}
 ): Promise<BackgroundRunResult> {
-	const run = await createAgentRun(ctx.userId, opts.chatId, opts.kind, ctx.workspaceId);
+	const run = await createAgentRun(appCtx.userId, opts.chatId, opts.kind, appCtx.workspaceId);
 
-	// Continuation replaces the run that was waiting on confirmation — retire stale runs
 	if (opts.kind === 'confirm') {
-		await supersedeOtherRunsForChat(ctx.userId, opts.chatId, run.id);
+		await supersedeOtherRunsForChat(appCtx.userId, opts.chatId, run.id);
 	}
 
-	// Fire-and-forget async execution
 	void (async () => {
 		await markRunRunning(run.id);
 
-		const ctxWithEvents: AgentContext = {
-			...ctx,
-			onEvent(event: AgentEvent) {
-				ctx.onEvent?.(event);
-				if (event.type === 'tool_start' || event.type === 'tool_done') {
-					appendRunToolStreamEvent(run.id, { type: event.type, tool: event.tool });
-				}
-				if (event.type === 'tool_start') {
-					void appendRunStep(run.id, {
-						type: 'tool_call',
-						timestamp: new Date().toISOString(),
-						data: { tool: event.tool, args: event.args }
-					});
-				}
-				if (event.type === 'tool_done') {
-					void appendRunStep(run.id, {
-						type: 'tool_result',
-						timestamp: new Date().toISOString(),
-						data: { tool: event.tool, resultSummary: event.resultSummary }
-					});
-				}
+		appCtx.onEvent = (event: AgentEvent) => {
+			if (event.type === 'tool_start' || event.type === 'tool_done') {
+				appendRunToolStreamEvent(run.id, { type: event.type, tool: event.tool });
+			}
+			if (event.type === 'tool_start') {
+				void appendRunStep(run.id, {
+					type: 'tool_call',
+					timestamp: new Date().toISOString(),
+					data: { tool: event.tool, args: event.args }
+				});
+			}
+			if (event.type === 'tool_done') {
+				void appendRunStep(run.id, {
+					type: 'tool_result',
+					timestamp: new Date().toISOString(),
+					data: { tool: event.tool, resultSummary: event.resultSummary }
+				});
 			}
 		};
 
 		try {
-			const outcome = await runAgentLoop(request, ctxWithEvents);
+			const outcome = await runAgentLoop(request, appCtx);
 
 			if (outcome.kind === 'pending_confirmation') {
 				await markRunAwaitingConfirmation(run.id, {
@@ -101,7 +95,7 @@ export async function startBackgroundRun(
 			await markRunDone(run.id);
 		} catch (err) {
 			const message = errorMessage(err);
-			ctx.logger.error('background_run.failed', { runId: run.id, error: message });
+			appCtx.logger.error('background_run.failed', { runId: run.id, error: message });
 			await markRunFailed(run.id, message);
 		}
 	})();

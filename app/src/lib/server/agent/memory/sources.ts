@@ -2,12 +2,8 @@
 // agent/memory/sources.ts — Source citation tracking
 // ---------------------------------------------------------------------------
 
-import { semanticSearch } from '$lib/server/semantic';
+import type { SearchResult } from '$lib/server/semantic';
 import type { Source } from '../types';
-import { asString, asNumber, asMediaType } from '../tools/validation';
-
-const DEFAULT_LIMIT = 8;
-const DEFAULT_MIN_SCORE = 0.5;
 
 /**
  * Mutable source accumulator. Tracks unique file citations across
@@ -23,28 +19,14 @@ export class SourceTracker {
 		}
 	}
 
-	/**
-	 * After a search tool call, re-run the same query to capture
-	 * the source citations (the tool output is text only).
-	 */
-	async captureFromSearchArgs(args: Record<string, unknown>): Promise<void> {
-		const query = asString(args.query);
-		if (!query?.trim()) return;
-
-		const results = await semanticSearch(query, {
-			mediaType: asMediaType(args.mediaType),
-			rootIndex: asNumber(args.rootIndex),
-			limit: Math.max(1, Math.min(Math.floor(asNumber(args.limit) ?? DEFAULT_LIMIT), 24)),
-			minScore: asNumber(args.minScore) ?? DEFAULT_MIN_SCORE
-		});
-
-		for (const row of results) {
-			if (this.map.has(row.id)) continue;
-			this.map.set(row.id, {
-				fileId: row.id,
-				filePath: row.path,
-				chunk: row.name || row.path,
-				score: row.score
+	/** Add a single SearchResult as a source (called directly from the search tool). */
+	addResult(r: SearchResult): void {
+		if (!this.map.has(r.id)) {
+			this.map.set(r.id, {
+				fileId: r.id,
+				filePath: r.path,
+				chunk: r.name || r.path,
+				score: r.score
 			});
 		}
 	}

@@ -18,7 +18,6 @@ export interface SyncAgentResponse {
 	pendingId?: string;
 	pendingTool?: string;
 	pendingArgs?: Record<string, unknown>;
-	pendingToolCallId?: string;
 }
 
 export function buildSyncResponse(
@@ -41,8 +40,7 @@ export function buildSyncResponse(
 			awaitingConfirmation: true,
 			pendingId: outcome.pendingId,
 			pendingTool: outcome.tool,
-			pendingArgs: outcome.args,
-			pendingToolCallId: outcome.toolCallId
+			pendingArgs: outcome.args
 		};
 	}
 

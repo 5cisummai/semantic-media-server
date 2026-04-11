@@ -1,37 +1,15 @@
 import { db } from '$lib/server/db';
 import type { Prisma } from '@prisma/client';
-import type { LlmMessage } from '$lib/server/services/llm';
 
 const TTL_MS = 30 * 60 * 1000;
 
-export interface PendingToolCallSummary {
-	tool: string;
-	args: Record<string, unknown>;
-	resultSummary: string;
-}
-
-export interface PendingSource {
-	fileId: string;
-	filePath: string;
-	chunk: string;
-	score: number;
-}
-
 export interface PendingAgentPayload {
-	messages: LlmMessage[];
-	filters: {
-		mediaType?: string;
-		rootIndex?: number;
-		fileIds?: string[];
-		limit?: number;
-		minScore?: number;
-	};
-	toolCallId: string;
+	/** Serialized RunState from the SDK (via result.state.toString()). */
+	runState: string;
+	/** Tool name that triggered the approval request — for display in the UI. */
 	toolName: string;
+	/** Tool arguments at the time of the approval request — for display in the UI. */
 	toolArgs: Record<string, unknown>;
-	startIteration: number;
-	toolCallsSoFar: PendingToolCallSummary[];
-	sources: PendingSource[];
 }
 
 export async function createPendingConfirmation(

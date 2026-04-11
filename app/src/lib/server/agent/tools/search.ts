@@ -1,10 +1,14 @@
 // ---------------------------------------------------------------------------
-// agent/tools/search.ts — Semantic search tool
+// agent/tools/search.ts — Semantic search tool (SDK tool() + Zod schema)
 // ---------------------------------------------------------------------------
 
-import { semanticSearch, type SearchResult } from '$lib/server/semantic';
-import type { ToolDefinition, ToolResult } from './types';
-import { asString, asNumber, asMediaType } from './validation';
+import { tool } from '@openai/agents';
+import type { RunContext } from '@openai/agents';
+import { z } from 'zod';
+import { semanticSearch } from '$lib/server/semantic';
+import type { SearchResult } from '$lib/server/semantic';
+import type { AgentAppContext } from '../context';
+import { summarizeToolResult } from '../loop-utils';
 
 const MEDIA_TYPE_ENUM = ['video', 'audio', 'image', 'document', 'other'] as const;
 
@@ -18,35 +22,48 @@ function formatSearchRows(results: SearchResult[]): string {
 		.join('\n');
 }
 
-export const searchTool: ToolDefinition = {
+export const searchTool = tool({
 	name: 'search',
 	description: 'Semantic search across indexed files in the workspace.',
-	parameters: {
-		type: 'object',
-		properties: {
-			query: { type: 'string', description: 'Natural-language search query.' },
-			mediaType: { type: 'string', enum: MEDIA_TYPE_ENUM, description: 'Optional media type filter.' },
-			rootIndex: { type: 'number', description: 'Optional media root index to search.' },
-			limit: { type: 'number', description: 'Maximum results to return.', default: 8 },
-			minScore: { type: 'number', description: 'Minimum similarity score threshold.', default: 0.5 }
-		},
-		required: ['query']
-	},
-	requiresConfirmation: false,
-	hasSideEffects: false,
+	parameters: z.object({
+		query: z.string().describe('Natural-language search query.'),
+		mediaType: z.enum(MEDIA_TYPE_ENUM).optional().describe('Optional media type filter.'),
+		rootIndex: z.number().optional().describe('Optional media root index to search.'),
+		limit: z.number().optional().default(8).describe('Maximum results to return.'),
+		minScore: z.number().optional().default(0.5).describe('Minimum similarity score threshold.')
+	}),
+	async execute(args, runContext?: RunContext<AgentAppContext>): Promise<string> {
+		const ctx = runContext?.context;
+		const query = args.query.trim();
+		if (!query) return 'Error: search requires a non-empty "query" string.';
 
-	async handler(args, ctx): Promise<ToolResult> {
-		const query = asString(args.query) ?? '';
-		if (!query.trim()) return { output: 'Error: search requires a non-empty "query" string.' };
+		const filters = ctx?.filters;
+		const mediaType = args.mediaType ?? filters?.mediaType;
+		const rootIndex = args.rootIndex ?? filters?.rootIndex;
+		const limit = Math.max(1, Math.min(Math.floor(args.limit ?? filters?.limit ?? 8), 24));
+		const minScore = args.minScore ?? filters?.minScore ?? 0.5;
+
+		const effectiveArgs = { query, mediaType, rootIndex, limit, minScore };
+
+		ctx?.onEvent?.({ type: 'tool_start', tool: 'search', args: effectiveArgs });
 
 		const results = await semanticSearch(query, {
 			workspaceId: ctx?.workspaceId,
-			mediaType: asMediaType(args.mediaType),
-			rootIndex: asNumber(args.rootIndex),
-			limit: Math.max(1, Math.min(Math.floor(asNumber(args.limit) ?? 8), 24)),
-			minScore: asNumber(args.minScore) ?? 0.5
+			mediaType,
+			rootIndex,
+			limit,
+			minScore
 		});
 
-		return { output: formatSearchRows(results) };
+		const output = formatSearchRows(results);
+
+		// Capture source citations into context
+		for (const r of results) ctx?.sourceTracker.addResult(r);
+
+		const summary = summarizeToolResult(output);
+		ctx?.toolCalls.push({ tool: 'search', args: effectiveArgs, resultSummary: summary });
+		ctx?.onEvent?.({ type: 'tool_done', tool: 'search', resultSummary: summary });
+
+		return output;
 	}
-};
+});

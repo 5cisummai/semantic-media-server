@@ -1,28 +1,30 @@
 // ---------------------------------------------------------------------------
-// agent/transport/stream.ts — NDJSON streaming response builder
+// agent/transport/stream.ts — NDJSON streaming response builder (SDK-powered)
 // ---------------------------------------------------------------------------
 
+import { run, type AgentInputItem } from '@openai/agents';
 import { env } from '$env/dynamic/private';
-import { streamText } from '$lib/server/services/llm';
-import type { LlmMessage } from '$lib/server/services/llm';
 import { saveAssistantMessage } from '$lib/server/chat-store';
-import { runAgentLoop } from '../loop';
+import { getMediaAgent } from '../agent';
+import { createPendingConfirmation } from '$lib/server/pending-tool-confirmation';
 import { normalizeFilters, serializeFilters } from '../filters';
-import type { AgentContext } from '../context';
+import { messagesToAgentInputItems } from '../memory/history';
+import type { AgentAppContext } from '../context';
 import type { AgentRequest, AgentEvent } from '../types';
+import { MAX_AGENT_ITERATIONS } from '../types';
 import { errorMessage } from '../errors';
 
 /**
- * Build a ReadableStream<Uint8Array> that runs the agent loop, then
- * streams the final answer token-by-token as NDJSON.
+ * Build a ReadableStream<Uint8Array> that runs the agent loop with SDK streaming,
+ * piping tool events and token deltas as NDJSON.
  *
  * Events emitted:
- *   message_saved, tool_start, tool_done, confirmation_required,
- *   meta, token, message_saved (assistant), error, done
+ *   message_saved (user), tool_start, tool_done, confirmation_required,
+ *   token, meta, message_saved (assistant), error, done
  */
 export function buildStreamResponse(
 	request: AgentRequest,
-	ctx: AgentContext,
+	appCtx: AgentAppContext,
 	opts: {
 		chatId: string;
 		savedUserMessageId?: string | null;
@@ -37,105 +39,135 @@ export function buildStreamResponse(
 			};
 
 			const model = env.LLM_MODEL ?? 'llama3.2';
-			const filters = normalizeFilters(request.continuation?.filters ?? request.filters);
+			const filters = normalizeFilters(request.filters);
+			appCtx.filters = filters;
 
 			try {
-				// Notify client of saved user message ID
 				if (opts.savedUserMessageId) {
 					writeLine({ type: 'message_saved', role: 'user', id: opts.savedUserMessageId });
 				}
 
-				// Wire up event forwarding from agent loop → NDJSON stream
-				const originalOnEvent = ctx.onEvent;
-				ctx = {
-					...ctx,
-					onEvent(event: AgentEvent) {
-						originalOnEvent?.(event);
-						switch (event.type) {
-							case 'tool_start':
-								writeLine({
-									type: 'tool_start',
-									tool: event.tool,
-									...(event.args !== undefined ? { args: event.args } : {})
-								});
-								break;
-							case 'tool_done':
-								writeLine({
-									type: 'tool_done',
-									tool: event.tool,
-									...(event.resultSummary !== undefined ? { resultSummary: event.resultSummary } : {})
-								});
-								break;
-							case 'tool_thinking':
-								writeLine({
-									type: 'tool_thinking',
-									tool: event.tool,
-									thinking: event.thinking
-								});
-								break;
-							case 'confirmation_required':
-								writeLine({
-									type: 'tool_confirmation_required',
-									pendingId: event.pendingId,
-									tool: event.tool,
-									args: event.args,
-									toolCallId: event.toolCallId,
-									chatId: event.chatId
-								});
-								break;
-						}
+				// Wire tool events from ctx.onEvent → NDJSON
+				appCtx.onEvent = (event: AgentEvent) => {
+					switch (event.type) {
+						case 'tool_start':
+							writeLine({
+								type: 'tool_start',
+								tool: event.tool,
+								...(event.args !== undefined ? { args: event.args } : {})
+							});
+							break;
+						case 'tool_done':
+							writeLine({
+								type: 'tool_done',
+								tool: event.tool,
+								...(event.resultSummary !== undefined ? { resultSummary: event.resultSummary } : {})
+							});
+							break;
+						case 'tool_thinking':
+							writeLine({ type: 'tool_thinking', tool: event.tool, thinking: event.thinking });
+							break;
 					}
 				};
 
-				const outcome = await runAgentLoop(request, ctx);
+				const historyItems = messagesToAgentInputItems(request.history);
+				const input: AgentInputItem[] = [
+					...historyItems,
+					{ role: 'user', content: request.question.trim() }
+				];
 
-				// Build meta payload
-				const metaBase = {
-					type: 'meta',
-					chatId: opts.chatId,
-					sources: outcome.kind === 'complete'
-						? Array.from(outcome.sources.values())
-						: Array.from(outcome.sources.values()),
-					filters: serializeFilters(filters),
-					model,
-					toolCalls: outcome.kind === 'complete' ? outcome.toolCalls : outcome.toolCallsSoFar,
-					iterations: outcome.iterations
-				};
+				const agent = getMediaAgent();
+				const sdkResult = await run(agent, input, {
+					stream: true,
+					context: appCtx,
+					maxTurns: MAX_AGENT_ITERATIONS
+				});
 
-				if (outcome.kind === 'pending_confirmation') {
-					writeLine({ ...metaBase, awaitingConfirmation: true });
+				// Stream token deltas (tool events handled inside tool.execute() via appCtx.onEvent)
+				let finalText = '';
+				for await (const event of sdkResult) {
+					if (
+						event.type === 'raw_model_stream_event' &&
+						event.data.type === 'output_text_delta'
+					) {
+						finalText += event.data.delta;
+						writeLine({ type: 'token', text: event.data.delta });
+					}
+				}
+
+				// ---- Confirmation required ----
+				if (sdkResult.interruptions && sdkResult.interruptions.length > 0) {
+					const interruption = sdkResult.interruptions[0];
+					const toolName = interruption.name ?? 'unknown_tool';
+					let toolArgs: Record<string, unknown> = {};
+					try {
+						if (
+							'arguments' in interruption.rawItem &&
+							typeof interruption.rawItem.arguments === 'string'
+						) {
+							toolArgs = JSON.parse(interruption.rawItem.arguments) as Record<string, unknown>;
+						}
+					} catch {
+						// ignore parse errors
+					}
+
+					const runStateStr = sdkResult.state.toString();
+					const pendingId = await createPendingConfirmation(appCtx.userId, opts.chatId, {
+						runState: runStateStr,
+						toolName,
+						toolArgs
+					});
+
+					writeLine({
+						type: 'meta',
+						chatId: opts.chatId,
+						sources: appCtx.sourceTracker.toArray(),
+						filters: serializeFilters(filters),
+						model,
+						toolCalls: appCtx.toolCalls,
+						iterations: sdkResult.currentTurn ?? 0,
+						awaitingConfirmation: true
+					});
+					writeLine({
+						type: 'tool_confirmation_required',
+						pendingId,
+						tool: toolName,
+						args: toolArgs,
+						chatId: opts.chatId
+					});
 					writeLine({ type: 'done' });
 					return;
 				}
 
-				writeLine(metaBase);
+				// ---- Complete ----
+				const answer =
+					finalText ||
+					(typeof sdkResult.finalOutput === 'string' ? sdkResult.finalOutput : null) ||
+					"I couldn't complete the request within the tool-iteration limit. Please try a narrower question.";
 
-				// Stream the final text answer token-by-token
-				try {
-					let answer = '';
-					for await (const text of streamText(outcome.messages as LlmMessage[])) {
-						answer += text;
-						writeLine({ type: 'token', text });
-					}
+				writeLine({
+					type: 'meta',
+					chatId: opts.chatId,
+					sources: appCtx.sourceTracker.toArray(),
+					filters: serializeFilters(filters),
+					model,
+					toolCalls: appCtx.toolCalls,
+					iterations: sdkResult.currentTurn ?? 0
+				});
 
-					const assistantRowId = await saveAssistantMessage(opts.chatId, answer, {
-						sources: Array.from(outcome.sources.values()),
-						toolCalls: outcome.toolCalls,
-						model,
-						iterations: outcome.iterations
-					});
-					if (assistantRowId) {
-						writeLine({ type: 'message_saved', role: 'assistant', id: assistantRowId });
-					}
-					writeLine({ type: 'done' });
-				} catch (streamErr) {
-					const msg = errorMessage(streamErr);
-					ctx.logger.error('stream.token_error', { error: msg });
-					writeLine({ type: 'error', message: msg });
+				const assistantRowId = await saveAssistantMessage(opts.chatId, answer, {
+					sources: appCtx.sourceTracker.toArray(),
+					toolCalls: appCtx.toolCalls,
+					model,
+					iterations: sdkResult.currentTurn ?? 0
+				});
+				if (assistantRowId) {
+					writeLine({ type: 'message_saved', role: 'assistant', id: assistantRowId });
 				}
+				writeLine({ type: 'done' });
 			} catch (err) {
 				const msg = errorMessage(err);
-				ctx.logger.error('stream.loop_error', { error: msg });
+				appCtx.logger.error('stream.error', { error: msg });
 				writeLine({ type: 'error', message: msg });
 			} finally {
 				controller.close();
@@ -143,3 +175,5 @@ export function buildStreamResponse(
 		}
 	});
 }
+
+

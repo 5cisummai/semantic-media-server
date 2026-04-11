@@ -24,28 +24,6 @@ export interface ChatOptions {
 	top_p?: number;
 }
 
-export interface LlmToolDefinition {
-	type: 'function';
-	function: {
-		name: string;
-		description?: string;
-		parameters: Record<string, unknown>;
-	};
-}
-
-export type ChatWithToolsResult =
-	| {
-			type: 'text';
-			message: string;
-			finishReason: string;
-	  }
-	| {
-			type: 'tool_call';
-			toolName: string;
-			toolArgs: Record<string, unknown>;
-			toolCallId: string;
-			rawMessage: unknown;
-	  };
 
 function getProvider(): LlmProvider {
 	const provider = (env.LLM_PROVIDER ?? 'ollama').toLowerCase();
@@ -85,23 +63,6 @@ function mapMessagesForOpenAI(messages: LlmMessage): {
 	};
 }
 
-function parseToolArgs(rawArgs: unknown): Record<string, unknown> {
-	if (typeof rawArgs === 'string') {
-		try {
-			const parsed = JSON.parse(rawArgs) as unknown;
-			if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-				return parsed as Record<string, unknown>;
-			}
-			return {};
-		} catch {
-			return {};
-		}
-	}
-	if (rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)) {
-		return rawArgs as Record<string, unknown>;
-	}
-	return {};
-}
 
 async function chatWithOllama(
 	messages: LlmMessage[],
@@ -212,205 +173,6 @@ async function chatWithOpenAI(
 	}
 }
 
-async function chatWithToolsOpenAI(
-	messages: LlmMessage[],
-	tools: LlmToolDefinition[],
-	model: string,
-	timeout: number,
-	options?: ChatOptions
-): Promise<ChatWithToolsResult> {
-	const baseUrl = env.LLM_BASE_URL ?? 'http://127.0.0.1:1234/v1';
-
-	const headers: Record<string, string> = {
-		'Content-Type': 'application/json'
-	};
-	if (env.LLM_API_KEY) {
-		headers.Authorization = `Bearer ${env.LLM_API_KEY}`;
-	}
-
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-	try {
-		const temperature = getTemperature(options);
-		const topP = getTopP(options);
-		const response = await fetch(`${baseUrl}/chat/completions`, {
-			method: 'POST',
-			headers,
-			body: JSON.stringify({
-				model,
-				messages: messages.map(mapMessagesForOpenAI),
-				tools,
-				tool_choice: 'auto',
-				temperature,
-				...(topP !== undefined ? { top_p: topP } : {})
-			}),
-			signal: controller.signal
-		});
-
-		clearTimeout(timeoutId);
-
-		if (!response.ok) {
-			throw new Error(
-				`OpenAI-compatible request failed: ${response.status} ${response.statusText}`
-			);
-		}
-
-		const body = (await response.json()) as {
-			choices?: Array<{
-				message?: {
-					content?: string | null;
-					tool_calls?: Array<{
-						id?: string;
-						function?: { name?: string; arguments?: unknown };
-					}>;
-				};
-				finish_reason?: string;
-			}>;
-		};
-
-		const choice = body.choices?.[0];
-		const rawMessage = choice?.message ?? {};
-		const firstToolCall = choice?.message?.tool_calls?.[0];
-
-		if (firstToolCall?.function?.name) {
-			return {
-				type: 'tool_call',
-				toolName: firstToolCall.function.name,
-				toolArgs: parseToolArgs(firstToolCall.function.arguments),
-				toolCallId: firstToolCall.id ?? randomUUID(),
-				rawMessage
-			};
-		}
-
-		return {
-			type: 'text',
-			message: typeof choice?.message?.content === 'string' ? choice.message.content : '',
-			finishReason: choice?.finish_reason ?? 'stop'
-		};
-	} catch (err) {
-		clearTimeout(timeoutId);
-		throw err;
-	}
-}
-
-async function chatWithToolsOllama(
-	messages: LlmMessage[],
-	tools: LlmToolDefinition[],
-	model: string,
-	timeout: number,
-	options?: ChatOptions
-): Promise<ChatWithToolsResult> {
-	const baseUrl = env.LLM_BASE_URL ?? 'http://127.0.0.1:11434';
-
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-	try {
-		const temperature = getTemperature(options);
-		const topP = getTopP(options);
-		const response = await fetch(`${baseUrl}/api/chat`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				model,
-				messages: messages.map((m) => ({
-					role: m.role,
-					content: m.content,
-					...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-					...(m.name ? { name: m.name } : {}),
-					...(m.tool_calls ? { tool_calls: m.tool_calls } : {})
-				})),
-				tools,
-				stream: false,
-				options: {
-					temperature,
-					...(topP !== undefined ? { top_p: topP } : {})
-				}
-			}),
-			signal: controller.signal
-		});
-
-		clearTimeout(timeoutId);
-
-		if (!response.ok) {
-			throw new Error(`Ollama request failed: ${response.status} ${response.statusText}`);
-		}
-
-		const body = (await response.json()) as {
-			message?: {
-				content?: string;
-				tool_calls?: Array<{
-					id?: string;
-					function?: { name?: string; arguments?: unknown };
-					name?: string;
-					arguments?: unknown;
-				}>;
-			};
-			done?: boolean;
-		};
-
-		const firstToolCall = body.message?.tool_calls?.[0];
-		const toolName = firstToolCall?.function?.name ?? firstToolCall?.name;
-		if (toolName) {
-			const rawArgs = firstToolCall?.function?.arguments ?? firstToolCall?.arguments;
-			return {
-				type: 'tool_call',
-				toolName,
-				toolArgs: parseToolArgs(rawArgs),
-				toolCallId: firstToolCall?.id ?? randomUUID(),
-				rawMessage: body.message ?? {}
-			};
-		}
-
-		return {
-			type: 'text',
-			message: body.message?.content ?? '',
-			finishReason: body.done === true ? 'stop' : 'length'
-		};
-	} catch (err) {
-		clearTimeout(timeoutId);
-		throw err;
-	}
-}
-
-export async function chat(messages: LlmMessage[], options?: ChatOptions): Promise<LlmResponse> {
-	const provider = getProvider();
-	const model = options?.model ?? env.LLM_MODEL ?? 'llama3.2';
-	const timeout = getTimeout(options);
-
-	if (provider === 'openai') {
-		return chatWithOpenAI(messages, model, timeout, options);
-	}
-
-	return chatWithOllama(messages, model, timeout, options);
-}
-
-export async function chatWithTools(
-	messages: LlmMessage[],
-	tools: LlmToolDefinition[],
-	options?: ChatOptions
-): Promise<ChatWithToolsResult> {
-	const provider = getProvider();
-	const model = options?.model ?? env.LLM_MODEL ?? 'llama3.2';
-	const timeout = getTimeout(options);
-
-	if (provider === 'openai') {
-		return chatWithToolsOpenAI(messages, tools, model, timeout, options);
-	}
-	return chatWithToolsOllama(messages, tools, model, timeout, options);
-}
-
-function mapMessagesForOllamaChat(m: LlmMessage): Record<string, unknown> {
-	return {
-		role: m.role,
-		content: m.content,
-		...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-		...(m.name ? { name: m.name } : {}),
-		...(m.tool_calls ? { tool_calls: m.tool_calls } : {})
-	};
-}
-
 /**
  * Stream assistant text tokens (UTF-8). No tools — final answer only. Ollama and OpenAI-compatible.
  */
@@ -436,6 +198,26 @@ export async function* streamText(
 	} finally {
 		clearTimeout(timeoutId);
 	}
+}
+
+function mapMessagesForOllamaChat(m: LlmMessage): Record<string, unknown> {
+	return {
+		role: m.role,
+		content: m.content,
+		...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+		...(m.name ? { name: m.name } : {}),
+		...(m.tool_calls ? { tool_calls: m.tool_calls } : {})
+	};
+}
+
+export async function chat(messages: LlmMessage[], options?: ChatOptions): Promise<LlmResponse> {
+	const provider = getProvider();
+	const model = options?.model ?? env.LLM_MODEL ?? 'llama3.2';
+	const timeout = getTimeout(options);
+	if (provider === 'openai') {
+		return chatWithOpenAI(messages, model, timeout, options);
+	}
+	return chatWithOllama(messages, model, timeout, options);
 }
 
 async function* streamTextOllama(

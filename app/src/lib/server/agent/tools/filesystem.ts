@@ -1,10 +1,11 @@
 // ---------------------------------------------------------------------------
-// agent/tools/filesystem.ts — Read-only filesystem tools
+// agent/tools/filesystem.ts — Read-only filesystem tools (SDK tool() + Zod)
 // ---------------------------------------------------------------------------
 
 import fs from 'node:fs/promises';
-import type { ToolDefinition, ToolResult } from './types';
-import { asString } from './validation';
+import { tool } from '@openai/agents';
+import type { RunContext } from '@openai/agents';
+import { z } from 'zod';
 import {
 	formatSize,
 	getMediaInfo,
@@ -12,117 +13,111 @@ import {
 	readFileContent,
 	resolveSafePath
 } from '$lib/server/services/storage';
+import type { AgentAppContext } from '../context';
+import { summarizeToolResult } from '../loop-utils';
+
+// ---------------------------------------------------------------------------
+// Helper — wrap read-only tool execution with event emission + summary
+// ---------------------------------------------------------------------------
+
+function makeReadonlyExecute<T extends Record<string, unknown>>(
+	toolName: string,
+	fn: (args: T, ctx?: AgentAppContext) => Promise<string>
+) {
+	return async (args: T, runContext?: RunContext<AgentAppContext>): Promise<string> => {
+		const ctx = runContext?.context;
+		ctx?.onEvent?.({ type: 'tool_start', tool: toolName, args: args as Record<string, unknown> });
+		const output = await fn(args, ctx);
+		const summary = summarizeToolResult(output);
+		ctx?.toolCalls.push({ tool: toolName, args: args as Record<string, unknown>, resultSummary: summary });
+		ctx?.onEvent?.({ type: 'tool_done', tool: toolName, resultSummary: summary });
+		return output;
+	};
+}
 
 // ---------------------------------------------------------------------------
 // list_directory
 // ---------------------------------------------------------------------------
 
-export const listDirectoryTool: ToolDefinition = {
+export const listDirectoryTool = tool({
 	name: 'list_directory',
-	description: 'List directory contents by path. Use empty string to list all configured media roots.',
-	parameters: {
-		type: 'object',
-		properties: {
-			path: {
-				type: 'string',
-				description: 'Path in rootIndex/path format (for example "0/photos"), or empty string for root.'
-			}
-		},
-		required: ['path']
-	},
-	requiresConfirmation: false,
-	hasSideEffects: false,
-
-	async handler(args): Promise<ToolResult> {
-		const targetPath = asString(args.path);
-		if (targetPath === null) return { output: 'Error: list_directory requires a "path" string.' };
-
+	description:
+		'List directory contents by path. Use empty string to list all configured media roots.',
+	parameters: z.object({
+		path: z
+			.string()
+			.describe(
+				'Path in rootIndex/path format (for example "0/photos"), or empty string for root.'
+			)
+	}),
+	execute: makeReadonlyExecute('list_directory', async ({ path: targetPath }) => {
 		const entries = await listDirectory(targetPath);
 		if (entries.length === 0) {
-			const msg = targetPath.trim() ? `Directory "${targetPath}" is empty.` : 'No media roots available.';
-			return { output: msg };
+			return targetPath.trim()
+				? `Directory "${targetPath}" is empty.`
+				: 'No media roots available.';
 		}
-
-		const lines = entries.map((entry) => {
-			if (entry.type === 'directory') return `[dir] ${entry.path}`;
-			const size = typeof entry.size === 'number' ? formatSize(entry.size) : 'unknown size';
-			return `[file] ${entry.path} | ${entry.mediaType ?? 'other'} | ${size}`;
-		});
-		return { output: lines.join('\n') };
-	}
-};
+		return entries
+			.map((entry) => {
+				if (entry.type === 'directory') return `[dir] ${entry.path}`;
+				const size = typeof entry.size === 'number' ? formatSize(entry.size) : 'unknown size';
+				return `[file] ${entry.path} | ${entry.mediaType ?? 'other'} | ${size}`;
+			})
+			.join('\n');
+	})
+});
 
 // ---------------------------------------------------------------------------
 // get_file_info
 // ---------------------------------------------------------------------------
 
-export const getFileInfoTool: ToolDefinition = {
+export const getFileInfoTool = tool({
 	name: 'get_file_info',
 	description: 'Get metadata for a single file or directory path.',
-	parameters: {
-		type: 'object',
-		properties: {
-			path: { type: 'string', description: 'Path in rootIndex/path format.' }
-		},
-		required: ['path']
-	},
-	requiresConfirmation: false,
-	hasSideEffects: false,
-
-	async handler(args): Promise<ToolResult> {
-		const relPath = asString(args.path);
-		if (!relPath) return { output: 'Error: get_file_info requires a non-empty "path" string.' };
-
+	parameters: z.object({
+		path: z.string().describe('Path in rootIndex/path format.')
+	}),
+	execute: makeReadonlyExecute('get_file_info', async ({ path: relPath }) => {
+		if (!relPath) return 'Error: get_file_info requires a non-empty "path" string.';
 		const resolved = resolveSafePath(relPath);
-		if (!resolved) return { output: `Error: invalid or out-of-scope path "${relPath}".` };
+		if (!resolved) return `Error: invalid or out-of-scope path "${relPath}".`;
 
 		const stat = await fs.stat(resolved.fullPath);
 		const kind = stat.isDirectory() ? 'directory' : stat.isFile() ? 'file' : 'other';
 		const media = stat.isFile() ? getMediaInfo(resolved.fullPath).mediaType : 'other';
 
-		const output = [
+		return [
 			`Path: ${relPath}`,
 			`Type: ${kind}`,
 			`MediaType: ${media}`,
 			`Size: ${formatSize(stat.size)}`,
 			`Modified: ${stat.mtime.toISOString()}`
 		].join('\n');
-		return { output };
-	}
-};
+	})
+});
 
 // ---------------------------------------------------------------------------
 // read_file
 // ---------------------------------------------------------------------------
 
-export const readFileTool: ToolDefinition = {
+export const readFileTool = tool({
 	name: 'read_file',
-	description: 'Read text content from a file path. Returns text for supported text/PDF types only.',
-	parameters: {
-		type: 'object',
-		properties: {
-			path: { type: 'string', description: 'Path in rootIndex/path format.' }
-		},
-		required: ['path']
-	},
-	requiresConfirmation: false,
-	hasSideEffects: false,
-
-	async handler(args): Promise<ToolResult> {
-		const relPath = asString(args.path);
-		if (!relPath) return { output: 'Error: read_file requires a non-empty "path" string.' };
-
+	description:
+		'Read text content from a file path. Returns text for supported text/PDF types only.',
+	parameters: z.object({
+		path: z.string().describe('Path in rootIndex/path format.')
+	}),
+	execute: makeReadonlyExecute('read_file', async ({ path: relPath }) => {
+		if (!relPath) return 'Error: read_file requires a non-empty "path" string.';
 		const resolved = resolveSafePath(relPath);
-		if (!resolved) return { output: `Error: invalid or out-of-scope path "${relPath}".` };
+		if (!resolved) return `Error: invalid or out-of-scope path "${relPath}".`;
 
 		const info = getMediaInfo(resolved.fullPath);
 		const content = await readFileContent(resolved.fullPath, info.mediaType);
 		if (content === null) {
-			return { output: `File "${relPath}" is not readable as text (detected media type: ${info.mediaType}).` };
+			return `File "${relPath}" is not readable as text (detected media type: ${info.mediaType}).`;
 		}
-		if (!content.trim()) {
-			return { output: `File "${relPath}" is empty.` };
-		}
-		return { output: `File: ${relPath}\n\n${content}` };
-	}
-};
+		if (!content.trim()) return `File "${relPath}" is empty.`;
+		return `File: ${relPath}\n\n${content}`;
+	})
+});

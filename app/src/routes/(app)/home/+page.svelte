@@ -281,6 +281,7 @@
 							description="{agent.messageCount} message{agent.messageCount === 1
 								? ''
 								: 's'} · {relativeTimestamp(agent.updatedAt)}"
+							sessionStatus={agent.status}
 							href="/chat?agent={encodeURIComponent(agent.id)}"
 							size="sm"
 						/>
