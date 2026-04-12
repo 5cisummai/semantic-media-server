@@ -15,7 +15,11 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ locals, params, url, request }) => {
 	const { workspaceId } = await requireWorkspaceAccess({ locals, params }, 'VIEWER');
 
-	const typeFilter = url.searchParams.get('types')?.split(',').map((t) => t.trim()).filter(Boolean);
+	const typeFilter = url.searchParams
+		.get('types')
+		?.split(',')
+		.map((t) => t.trim())
+		.filter(Boolean);
 
 	const enc = new TextEncoder();
 	let cleanup: (() => void) | null = null;

@@ -1,11 +1,5 @@
 // Whitelist: only tools that can require confirmation (mutations).
-const AUTO_APPROVABLE = new Set([
-	'delete_file',
-	'move_file',
-	'move_files',
-	'copy_file',
-	'mkdir'
-]);
+const AUTO_APPROVABLE = new Set(['delete_file', 'move_file', 'move_files', 'copy_file', 'mkdir']);
 
 const MAX_NAMES = 32;
 const MAX_LEN = 64;
@@ -37,10 +31,6 @@ export function shouldAutoApproveTool(
 	if (autoApproveToolNames.includes(toolName)) return true;
 	// One "Move" opt-in covers both single and batch move tools.
 	const movePair =
-		toolName === 'move_files'
-			? 'move_file'
-			: toolName === 'move_file'
-				? 'move_files'
-				: null;
+		toolName === 'move_files' ? 'move_file' : toolName === 'move_file' ? 'move_files' : null;
 	return movePair !== null && autoApproveToolNames.includes(movePair);
 }

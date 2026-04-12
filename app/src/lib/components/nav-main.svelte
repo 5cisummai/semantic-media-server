@@ -1,9 +1,9 @@
 <script lang="ts">
-	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
-	import { page } from "$app/state";
+	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import { page } from '$app/state';
 
 	let {
-		items,
+		items
 	}: {
 		items: {
 			title: string;

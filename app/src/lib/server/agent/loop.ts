@@ -58,7 +58,10 @@ export async function runAgentLoop(
 		throw new Error(`SDK run failed: ${errorMessage(err)}`, { cause: err });
 	}
 
-	const iterations = sdkResult.newItems.filter((i) => i.type === 'tool_call_item' || i.type === 'message_output_item').length || 1;
+	const iterations =
+		sdkResult.newItems.filter(
+			(i) => i.type === 'tool_call_item' || i.type === 'message_output_item'
+		).length || 1;
 
 	// ---- Confirmation required ----
 	if (sdkResult.interruptions && sdkResult.interruptions.length > 0) {
@@ -66,7 +69,10 @@ export async function runAgentLoop(
 		const toolName = interruption.name ?? 'unknown_tool';
 		let toolArgs: Record<string, unknown> = {};
 		try {
-			if ('arguments' in interruption.rawItem && typeof interruption.rawItem.arguments === 'string') {
+			if (
+				'arguments' in interruption.rawItem &&
+				typeof interruption.rawItem.arguments === 'string'
+			) {
 				toolArgs = JSON.parse(interruption.rawItem.arguments) as Record<string, unknown>;
 			}
 		} catch {
@@ -118,5 +124,3 @@ export async function runAgentLoop(
 		finalText
 	};
 }
-
-

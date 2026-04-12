@@ -90,7 +90,10 @@ async function walkDirectory(relativePath: string): Promise<string[]> {
 	return files;
 }
 
-async function ingestOneFile(relativePath: string, workspaceId?: string): Promise<IngestFileResult> {
+async function ingestOneFile(
+	relativePath: string,
+	workspaceId?: string
+): Promise<IngestFileResult> {
 	const resolved = resolveSafePath(relativePath);
 	if (!resolved) {
 		return { path: relativePath, status: 'skipped', chunksIndexed: 0, reason: 'Invalid path' };
@@ -114,7 +117,12 @@ async function ingestOneFile(relativePath: string, workspaceId?: string): Promis
 
 	const chunks = chunkText(content);
 	if (chunks.length === 0) {
-		return { path: relativePath, status: 'skipped', chunksIndexed: 0, reason: 'No text chunks produced' };
+		return {
+			path: relativePath,
+			status: 'skipped',
+			chunksIndexed: 0,
+			reason: 'No text chunks produced'
+		};
 	}
 
 	const points: BrainPoint[] = [];
@@ -160,7 +168,10 @@ async function ingestOneFile(relativePath: string, workspaceId?: string): Promis
 	return { path: relativePath, status: 'indexed', chunksIndexed: points.length };
 }
 
-export async function ingestFileByRelativePath(relativePath: string, workspaceId?: string): Promise<IngestSummary> {
+export async function ingestFileByRelativePath(
+	relativePath: string,
+	workspaceId?: string
+): Promise<IngestSummary> {
 	const counters: IngestCounters = {
 		filesScanned: 1,
 		filesIndexed: 0,
@@ -191,7 +202,10 @@ export async function ingestFileByRelativePath(relativePath: string, workspaceId
 	};
 }
 
-export async function ingestDirectoryByRootIndex(rootIndex: number, workspaceId?: string): Promise<IngestSummary> {
+export async function ingestDirectoryByRootIndex(
+	rootIndex: number,
+	workspaceId?: string
+): Promise<IngestSummary> {
 	const roots = getMediaRoots();
 	if (!Number.isInteger(rootIndex) || rootIndex < 0 || rootIndex >= roots.length) {
 		throw new Error('Invalid rootIndex');

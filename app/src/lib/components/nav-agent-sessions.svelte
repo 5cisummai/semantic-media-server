@@ -63,7 +63,6 @@
 							</Tooltip.Trigger>
 							<Tooltip.Content side="right" align="center" class="max-w-xs">
 								<p class="font-medium">{session.title || 'Agent session'}</p>
-								<p class="text-xs text-muted-foreground">Open session</p>
 							</Tooltip.Content>
 						</Tooltip.Root>
 					{:else}

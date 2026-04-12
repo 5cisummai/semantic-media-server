@@ -30,7 +30,11 @@ function makeMutatingExecute<T extends Record<string, unknown>>(
 		ctx.onEvent?.({ type: 'tool_start', tool: toolName, args: args as Record<string, unknown> });
 		const output = await fn(args, ctx);
 		const summary = summarizeToolResult(output);
-		ctx.toolCalls.push({ tool: toolName, args: args as Record<string, unknown>, resultSummary: summary });
+		ctx.toolCalls.push({
+			tool: toolName,
+			args: args as Record<string, unknown>,
+			resultSummary: summary
+		});
 		ctx.onEvent?.({ type: 'tool_done', tool: toolName, resultSummary: summary });
 		return output;
 	};
@@ -52,9 +56,7 @@ export const deleteFileTool = tool({
 	description:
 		'Permanently delete a file or folder under a media root. Requires user confirmation before it runs.',
 	parameters: z.object({
-		path: z
-			.string()
-			.describe('Path in rootIndex/path format (e.g. "0/photos/old.jpg").')
+		path: z.string().describe('Path in rootIndex/path format (e.g. "0/photos/old.jpg").')
 	}),
 	needsApproval: makeNeedsApproval('delete_file'),
 	execute: makeMutatingExecute('delete_file', async ({ path: relPath }, ctx) => {
@@ -81,7 +83,10 @@ export const moveFileTool = tool({
 	execute: makeMutatingExecute('move_file', async ({ source_path, destination_path }, ctx) => {
 		if (!source_path || !destination_path)
 			return 'Error: move_file requires "source_path" and "destination_path".';
-		return moveMediaPath(source_path, destination_path, { userId: ctx.userId, isAdmin: ctx.isAdmin });
+		return moveMediaPath(source_path, destination_path, {
+			userId: ctx.userId,
+			isAdmin: ctx.isAdmin
+		});
 	})
 });
 
@@ -104,11 +109,17 @@ export const moveFilesTool = tool({
 			.describe('Existing destination directory in rootIndex/path format (e.g. "0/archive").')
 	}),
 	needsApproval: makeNeedsApproval('move_files'),
-	execute: makeMutatingExecute('move_files', async ({ source_paths, destination_directory }, ctx) => {
-		if (!source_paths.length || !destination_directory)
-			return 'Error: move_files requires "source_paths" (string[]) and "destination_directory" (string).';
-		return moveManyMediaPaths(source_paths, destination_directory, { userId: ctx.userId, isAdmin: ctx.isAdmin });
-	})
+	execute: makeMutatingExecute(
+		'move_files',
+		async ({ source_paths, destination_directory }, ctx) => {
+			if (!source_paths.length || !destination_directory)
+				return 'Error: move_files requires "source_paths" (string[]) and "destination_directory" (string).';
+			return moveManyMediaPaths(source_paths, destination_directory, {
+				userId: ctx.userId,
+				isAdmin: ctx.isAdmin
+			});
+		}
+	)
 });
 
 // ---------------------------------------------------------------------------
@@ -127,7 +138,10 @@ export const copyFileTool = tool({
 	execute: makeMutatingExecute('copy_file', async ({ source_path, destination_path }, ctx) => {
 		if (!source_path || !destination_path)
 			return 'Error: copy_file requires "source_path" and "destination_path".';
-		return copyMediaPath(source_path, destination_path, { userId: ctx.userId, isAdmin: ctx.isAdmin });
+		return copyMediaPath(source_path, destination_path, {
+			userId: ctx.userId,
+			isAdmin: ctx.isAdmin
+		});
 	})
 });
 
@@ -148,5 +162,3 @@ export const mkdirTool = tool({
 		return mkdirMediaPath(relPath);
 	})
 });
-
-

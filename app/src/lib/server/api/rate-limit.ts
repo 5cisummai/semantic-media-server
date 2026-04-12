@@ -33,7 +33,10 @@ function ensureCleanup() {
 		const now = Date.now();
 		for (const [key, entry] of buckets) {
 			// Remove entries that haven't been touched in 5 minutes
-			if (entry.timestamps.length === 0 || entry.timestamps[entry.timestamps.length - 1] < now - 300_000) {
+			if (
+				entry.timestamps.length === 0 ||
+				entry.timestamps[entry.timestamps.length - 1] < now - 300_000
+			) {
 				buckets.delete(key);
 			}
 		}

@@ -27,10 +27,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!resolved) throw error(400, 'Invalid destination path');
 
 	// Sanitize filename — strip path separators, null bytes
-	const safeName = path
-		.basename(file.name)
-		.replace(/[/\\]/g, '')
-		.replace(/\0/g, '');
+	const safeName = path.basename(file.name).replace(/[/\\]/g, '').replace(/\0/g, '');
 
 	if (!safeName) throw error(400, 'Invalid filename');
 

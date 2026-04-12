@@ -1,10 +1,7 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
 	import { apiFetch } from '$lib/api-fetch';
-	import {
-		addAutoApproveToolName,
-		getAutoApproveToolNames
-	} from '$lib/agent-auto-approve';
+	import { addAutoApproveToolName, getAutoApproveToolNames } from '$lib/agent-auto-approve';
 	import { agentSessions } from '$lib/hooks/agent-sessions.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
@@ -119,13 +116,16 @@
 		return map[name] ?? `Using ${name}`;
 	}
 
-	function toolStepsFromStreamLog(
-		events: Array<{ type: string; tool: string }>
-	): ToolActionStep[] {
+	function toolStepsFromStreamLog(events: Array<{ type: string; tool: string }>): ToolActionStep[] {
 		const steps: ToolActionStep[] = [];
 		for (const e of events) {
 			if (e.type === 'tool_start' && typeof e.tool === 'string') {
-				steps.push({ label: toolLabelForName(e.tool), toolName: e.tool, done: false, expanded: false });
+				steps.push({
+					label: toolLabelForName(e.tool),
+					toolName: e.tool,
+					done: false,
+					expanded: false
+				});
 			} else if (e.type === 'tool_done' && typeof e.tool === 'string') {
 				for (let i = steps.length - 1; i >= 0; i--) {
 					if (!steps[i].done) {
@@ -141,7 +141,14 @@
 	function pushToolStart(name: string, args?: Record<string, unknown>, thinking?: string) {
 		streamingToolSteps = [
 			...streamingToolSteps,
-			{ label: toolLabelForName(name), toolName: name, args, thinking, done: false, expanded: false }
+			{
+				label: toolLabelForName(name),
+				toolName: name,
+				args,
+				thinking,
+				done: false,
+				expanded: false
+			}
 		];
 		pendingThinking = '';
 	}
@@ -155,9 +162,7 @@
 	function markLastToolDone() {
 		for (let i = streamingToolSteps.length - 1; i >= 0; i--) {
 			if (!streamingToolSteps[i].done) {
-				streamingToolSteps = streamingToolSteps.map((s, j) =>
-					j === i ? { ...s, done: true } : s
-				);
+				streamingToolSteps = streamingToolSteps.map((s, j) => (j === i ? { ...s, done: true } : s));
 				break;
 			}
 		}
@@ -434,7 +439,11 @@
 			return { assistantId, assistantContent, pendingMeta };
 		}
 
-		if (obj.type === 'tool_thinking' && typeof obj.tool === 'string' && typeof obj.thinking === 'string') {
+		if (
+			obj.type === 'tool_thinking' &&
+			typeof obj.tool === 'string' &&
+			typeof obj.thinking === 'string'
+		) {
 			pendingThinking = obj.thinking;
 			return { assistantId, assistantContent, pendingMeta };
 		}
@@ -662,12 +671,18 @@
 				);
 			}
 
-			const result = await response.json() as { chatId: string; runId: string; userMessageId?: string };
+			const result = (await response.json()) as {
+				chatId: string;
+				runId: string;
+				userMessageId?: string;
+			};
 			// Update the optimistic user message with the real server-assigned ID
 			if (result.userMessageId) {
-				const lastUserIdx = messages.findLastIndex(m => m.role === 'user');
+				const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
 				if (lastUserIdx !== -1) {
-					messages = messages.map((m, i) => i === lastUserIdx ? { ...m, id: result.userMessageId! } : m);
+					messages = messages.map((m, i) =>
+						i === lastUserIdx ? { ...m, id: result.userMessageId! } : m
+					);
 				}
 			}
 			await beginBackgroundRunTracking(result.runId, result.chatId);
@@ -752,7 +767,7 @@
 				);
 			}
 
-			const result = await response.json() as { chatId: string; runId: string };
+			const result = (await response.json()) as { chatId: string; runId: string };
 			await beginBackgroundRunTracking(result.runId, result.chatId);
 			onListRefresh?.();
 		} catch (err) {
@@ -1052,153 +1067,160 @@
 		/>
 	</div>
 
-	<div
-		bind:this={scrollEl}
-		class="flex-1 min-h-0 overflow-y-auto"
-		style="scrollbar-gutter: stable"
-	>
+	<div bind:this={scrollEl} class="min-h-0 flex-1 overflow-y-auto" style="scrollbar-gutter: stable">
 		<div class="mx-auto flex min-h-full w-full max-w-3xl flex-col px-3 pt-4 pb-4 sm:px-4">
-				{#if loadingConversation}
-					<div class="flex flex-1 items-center justify-center">
-						<p class="text-sm text-muted-foreground">Loading agent…</p>
-					</div>
-				{:else if messages.length === 0}
+			{#if loadingConversation}
+				<div class="flex flex-1 items-center justify-center">
+					<p class="text-sm text-muted-foreground">Loading agent…</p>
+				</div>
+			{:else if messages.length === 0}
+				<div class="flex flex-1 flex-col items-center justify-center gap-3 px-2 py-12 text-center">
 					<div
-						class="flex flex-1 flex-col items-center justify-center gap-3 px-2 py-12 text-center"
+						class="flex size-14 items-center justify-center rounded-2xl bg-muted/80 text-2xl shadow-inner ring-1 ring-border/50"
+						aria-hidden="true"
 					>
-						<div
-							class="flex size-14 items-center justify-center rounded-2xl bg-muted/80 text-2xl shadow-inner ring-1 ring-border/50"
-							aria-hidden="true"
-						>
-							✦
-						</div>
-						<div class="max-w-sm space-y-1.5 text-muted-foreground">
-							<p class="text-base font-medium text-foreground">
-								What can this agent help you with?
-							</p>
-							<p class="text-sm leading-relaxed">
-								Give this agent a task to complete using the file index and ingested content.
-							</p>
-						</div>
+						✦
 					</div>
-				{:else}
-					<div class="flex flex-col">
-						{#each messages as message (message.id)}
-							{#if editingUserId === message.id && message.role === 'user'}
-								<div class="w-full border-b border-border/70 py-5">
-									<div class="w-full border border-border bg-muted/20 p-3">
-										<label class="sr-only" for="edit-user-msg">Edit message</label>
-										<Textarea
-											id="edit-user-msg"
-											bind:value={editDraft}
-											rows={4}
-											class="w-full resize-y"
-										/>
-										<div class="mt-2 flex justify-end gap-2">
-											<Button type="button" variant="ghost" size="sm" onclick={cancelEdit}
-												>Cancel</Button
-											>
-											<Button
-												type="button"
-												size="sm"
-												disabled={loading || !editDraft.trim()}
-												onclick={() => commitEdit()}>Save & resend</Button
-											>
-										</div>
+					<div class="max-w-sm space-y-1.5 text-muted-foreground">
+						<p class="text-base font-medium text-foreground">What can this agent help you with?</p>
+						<p class="text-sm leading-relaxed">
+							Give this agent a task to complete using the file index and ingested content.
+						</p>
+					</div>
+				</div>
+			{:else}
+				<div class="flex flex-col">
+					{#each messages as message (message.id)}
+						{#if editingUserId === message.id && message.role === 'user'}
+							<div class="w-full border-b border-border/70 py-5">
+								<div class="w-full border border-border bg-muted/20 p-3">
+									<label class="sr-only" for="edit-user-msg">Edit message</label>
+									<Textarea
+										id="edit-user-msg"
+										bind:value={editDraft}
+										rows={4}
+										class="w-full resize-y"
+									/>
+									<div class="mt-2 flex justify-end gap-2">
+										<Button type="button" variant="ghost" size="sm" onclick={cancelEdit}
+											>Cancel</Button
+										>
+										<Button
+											type="button"
+											size="sm"
+											disabled={loading || !editDraft.trim()}
+											onclick={() => commitEdit()}>Save & resend</Button
+										>
 									</div>
 								</div>
-							{:else}
-								<ChatMessageBubble
-									{message}
-									busy={loading}
-									onEdit={() => startEditUser(message)}
-									onRegenerate={() => regenerateAssistant(message)}
-									onCopy={() => copyMessage(message)}
-									onRetry={() => retryLastFailed(message)}
-									onVariantPrev={() => variantPrev(message)}
-									onVariantNext={() => variantNext(message)}
-								/>
-							{/if}
-						{/each}
-					</div>
-				{/if}
-
-				{#if streamingToolSteps.length > 0}
-					<ul class="mt-2 space-y-1" aria-live="polite" aria-label="Tool activity">
-						{#each streamingToolSteps as step, stepIndex (stepIndex)}
-							<li class="flex flex-col">
-								<button
-									type="button"
-									class="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit rounded px-0.5 -mx-0.5 group"
-									onclick={() => toggleStepExpanded(stepIndex)}
-									title="Click to see call details"
-								>
-									{#if step.done}
-										<span class="text-emerald-600 dark:text-emerald-400" aria-hidden="true">✓</span>
-									{:else}
-										<span
-											class="inline-block size-1.5 shrink-0 animate-pulse rounded-full bg-muted-foreground/70"
-											aria-hidden="true"
-										></span>
-									{/if}
-									<span>{step.label}…</span>
-									<span class="text-muted-foreground/40 text-[10px] group-hover:text-muted-foreground/70">{step.expanded ? '▲' : '▼'}</span>
-								</button>
-								{#if step.expanded}
-									<div class="ml-4 mt-1 rounded border border-border/60 bg-muted/30 text-[11px] leading-relaxed overflow-hidden max-w-sm">
-										{#if step.thinking}
-											<div class="px-2.5 py-1.5 border-b border-border/50">
-												<p class="font-semibold text-muted-foreground mb-0.5 uppercase tracking-wide text-[10px]">Thinking</p>
-												<p class="text-foreground/80 whitespace-pre-wrap">{step.thinking}</p>
-											</div>
-										{/if}
-										<div class="px-2.5 py-1.5">
-											<p class="font-semibold text-muted-foreground mb-0.5 uppercase tracking-wide text-[10px]">Call</p>
-											<code class="font-mono text-foreground/90 whitespace-pre-wrap break-all">{step.toolName}({step.args ? JSON.stringify(step.args, null, 2) : ''})</code>
-										</div>
-									</div>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				{/if}
-
-				{#if loading && !streamingToolSteps.some((s) => !s.done)}
-					<div class="mt-2 flex w-full border-t border-border/60 pt-4">
-						<div class="flex w-full items-center gap-3 py-2">
-							<div class="flex gap-1.5">
-								<span class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"></span>
-								<span
-									class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"
-									style="animation-delay: 0.12s"
-								></span>
-								<span
-									class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"
-									style="animation-delay: 0.24s"
-								></span>
 							</div>
-							<span class="text-xs text-muted-foreground">Thinking…</span>
-						</div>
-					</div>
-				{/if}
+						{:else}
+							<ChatMessageBubble
+								{message}
+								busy={loading}
+								onEdit={() => startEditUser(message)}
+								onRegenerate={() => regenerateAssistant(message)}
+								onCopy={() => copyMessage(message)}
+								onRetry={() => retryLastFailed(message)}
+								onVariantPrev={() => variantPrev(message)}
+								onVariantNext={() => variantNext(message)}
+							/>
+						{/if}
+					{/each}
+				</div>
+			{/if}
 
-				{#if error}
-					<div
-						class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
-					>
-						<div class="flex flex-wrap items-center justify-between gap-2">
-							<span>{error}</span>
-							<Button
+			{#if streamingToolSteps.length > 0}
+				<ul class="mt-2 space-y-1" aria-live="polite" aria-label="Tool activity">
+					{#each streamingToolSteps as step, stepIndex (stepIndex)}
+						<li class="flex flex-col">
+							<button
 								type="button"
-								variant="outline"
-								size="sm"
-								class="shrink-0"
-								onclick={() => (error = null)}>Dismiss</Button
+								class="group -mx-0.5 flex w-fit items-center gap-2 rounded px-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+								onclick={() => toggleStepExpanded(stepIndex)}
+								title="Click to see call details"
 							>
+								{#if step.done}
+									<span class="text-emerald-600 dark:text-emerald-400" aria-hidden="true">✓</span>
+								{:else}
+									<span
+										class="inline-block size-1.5 shrink-0 animate-pulse rounded-full bg-muted-foreground/70"
+										aria-hidden="true"
+									></span>
+								{/if}
+								<span>{step.label}…</span>
+								<span
+									class="text-[10px] text-muted-foreground/40 group-hover:text-muted-foreground/70"
+									>{step.expanded ? '▲' : '▼'}</span
+								>
+							</button>
+							{#if step.expanded}
+								<div
+									class="mt-1 ml-4 max-w-sm overflow-hidden rounded border border-border/60 bg-muted/30 text-[11px] leading-relaxed"
+								>
+									{#if step.thinking}
+										<div class="border-b border-border/50 px-2.5 py-1.5">
+											<p
+												class="mb-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase"
+											>
+												Thinking
+											</p>
+											<p class="whitespace-pre-wrap text-foreground/80">{step.thinking}</p>
+										</div>
+									{/if}
+									<div class="px-2.5 py-1.5">
+										<p
+											class="mb-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase"
+										>
+											Call
+										</p>
+										<code class="font-mono break-all whitespace-pre-wrap text-foreground/90"
+											>{step.toolName}({step.args ? JSON.stringify(step.args, null, 2) : ''})</code
+										>
+									</div>
+								</div>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+
+			{#if loading && !streamingToolSteps.some((s) => !s.done)}
+				<div class="mt-2 flex w-full border-t border-border/60 pt-4">
+					<div class="flex w-full items-center gap-3 py-2">
+						<div class="flex gap-1.5">
+							<span class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"></span>
+							<span
+								class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"
+								style="animation-delay: 0.12s"
+							></span>
+							<span
+								class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/70"
+								style="animation-delay: 0.24s"
+							></span>
 						</div>
+						<span class="text-xs text-muted-foreground">Thinking…</span>
 					</div>
-				{/if}
-			</div>
+				</div>
+			{/if}
+
+			{#if error}
+				<div
+					class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/35 dark:text-red-300"
+				>
+					<div class="flex flex-wrap items-center justify-between gap-2">
+						<span>{error}</span>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							class="shrink-0"
+							onclick={() => (error = null)}>Dismiss</Button
+						>
+					</div>
+				</div>
+			{/if}
+		</div>
 	</div>
 
 	{#if pendingToolConfirmation}
@@ -1213,7 +1235,9 @@
 					>
 					· {summarizeToolArgs(pendingToolConfirmation.tool, pendingToolConfirmation.args)}
 				</p>
-				<label class="mt-3 flex cursor-pointer items-start gap-2.5 text-xs leading-snug text-muted-foreground">
+				<label
+					class="mt-3 flex cursor-pointer items-start gap-2.5 text-xs leading-snug text-muted-foreground"
+				>
 					<Checkbox
 						bind:checked={autoApproveThisKind}
 						disabled={loading}
@@ -1258,4 +1282,3 @@
 		/>
 	</div>
 </section>
-

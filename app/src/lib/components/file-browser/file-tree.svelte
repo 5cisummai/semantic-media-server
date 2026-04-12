@@ -116,22 +116,26 @@
 			</Collapsible.Root>
 		{:else}
 			<Button
-			variant="ghost"
-			class="w-full justify-start gap-2 h-auto px-2 py-1.5 text-sm {isSubTree ? 'rounded-sm' : 'rounded-md'}"
-			onclick={() => select(path)}
-		>
-			<FolderIcon class="size-4 shrink-0 text-muted-foreground" />
-			<span class="truncate">{name}</span>
-		</Button>
+				variant="ghost"
+				class="h-auto w-full justify-start gap-2 px-2 py-1.5 text-sm {isSubTree
+					? 'rounded-sm'
+					: 'rounded-md'}"
+				onclick={() => select(path)}
+			>
+				<FolderIcon class="size-4 shrink-0 text-muted-foreground" />
+				<span class="truncate">{name}</span>
+			</Button>
 		{/if}
 	{:else}
 		<Button
-		variant="ghost"
-		class="w-full justify-start gap-2 h-auto px-2 py-1.5 text-sm {isSubTree ? 'rounded-sm' : 'rounded-md'}"
-		onclick={() => select(path)}
-	>
-		<FileIcon class="size-4 shrink-0 text-muted-foreground" />
-		<span class="truncate">{name}</span>
-	</Button>
+			variant="ghost"
+			class="h-auto w-full justify-start gap-2 px-2 py-1.5 text-sm {isSubTree
+				? 'rounded-sm'
+				: 'rounded-md'}"
+			onclick={() => select(path)}
+		>
+			<FileIcon class="size-4 shrink-0 text-muted-foreground" />
+			<span class="truncate">{name}</span>
+		</Button>
 	{/if}
 {/each}

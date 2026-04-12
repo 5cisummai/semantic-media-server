@@ -39,14 +39,18 @@ export const searchByMetadataTool = tool({
 	parameters: z.object({
 		mediaType: z.enum(MEDIA_TYPE_ENUM).optional().describe('Optional media type filter.'),
 		rootIndex: z.number().optional().describe('Optional media root index.'),
-		path_contains: z.string().optional().describe('Optional case-insensitive path substring filter.')
+		path_contains: z
+			.string()
+			.optional()
+			.describe('Optional case-insensitive path substring filter.')
 	}),
-	async execute(
-		args,
-		runContext?: RunContext<AgentAppContext>
-	): Promise<string> {
+	async execute(args, runContext?: RunContext<AgentAppContext>): Promise<string> {
 		const ctx = runContext?.context;
-		ctx?.onEvent?.({ type: 'tool_start', tool: 'search_by_metadata', args: args as Record<string, unknown> });
+		ctx?.onEvent?.({
+			type: 'tool_start',
+			tool: 'search_by_metadata',
+			args: args as Record<string, unknown>
+		});
 
 		const mediaType = args.mediaType;
 		const rootIndex = args.rootIndex;
@@ -95,7 +99,11 @@ export const searchByMetadataTool = tool({
 
 		const output = formatSearchRows(filtered.slice(0, 50));
 		const summary = summarizeToolResult(output);
-		ctx?.toolCalls.push({ tool: 'search_by_metadata', args: args as Record<string, unknown>, resultSummary: summary });
+		ctx?.toolCalls.push({
+			tool: 'search_by_metadata',
+			args: args as Record<string, unknown>,
+			resultSummary: summary
+		});
 		ctx?.onEvent?.({ type: 'tool_done', tool: 'search_by_metadata', resultSummary: summary });
 		return output;
 	}

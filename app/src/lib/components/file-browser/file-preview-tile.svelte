@@ -27,7 +27,17 @@
 	const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'tiff']);
 	const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv']);
 	const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg']);
-	const DOCUMENT_EXTENSIONS = new Set(['pdf', 'txt', 'md', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']);
+	const DOCUMENT_EXTENSIONS = new Set([
+		'pdf',
+		'txt',
+		'md',
+		'doc',
+		'docx',
+		'xls',
+		'xlsx',
+		'ppt',
+		'pptx'
+	]);
 
 	const normalizedName = $derived(item.name ?? item.path ?? 'Untitled');
 	const mediaUrl = $derived(item.url ?? item.path ?? '');
@@ -35,13 +45,16 @@
 	const isDirectory = $derived(item.type === 'directory');
 
 	const isImage = $derived(
-		!isDirectory && ((item.mimeType?.startsWith('image/') ?? false) || IMAGE_EXTENSIONS.has(extension))
+		!isDirectory &&
+			((item.mimeType?.startsWith('image/') ?? false) || IMAGE_EXTENSIONS.has(extension))
 	);
 	const isVideo = $derived(
-		!isDirectory && ((item.mimeType?.startsWith('video/') ?? false) || VIDEO_EXTENSIONS.has(extension))
+		!isDirectory &&
+			((item.mimeType?.startsWith('video/') ?? false) || VIDEO_EXTENSIONS.has(extension))
 	);
 	const isAudio = $derived(
-		!isDirectory && ((item.mimeType?.startsWith('audio/') ?? false) || AUDIO_EXTENSIONS.has(extension))
+		!isDirectory &&
+			((item.mimeType?.startsWith('audio/') ?? false) || AUDIO_EXTENSIONS.has(extension))
 	);
 	const isDocument = $derived(!isDirectory && DOCUMENT_EXTENSIONS.has(extension));
 

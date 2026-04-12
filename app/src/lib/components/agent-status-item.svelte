@@ -176,7 +176,8 @@
 	{size}
 	{variant}
 	class={cn(
-		compact && 'min-h-8 justify-center gap-0 border-transparent px-2 py-1.5 [&:has(a)]:justify-center',
+		compact &&
+			'min-h-8 justify-center gap-0 border-transparent px-2 py-1.5 [&:has(a)]:justify-center',
 		className
 	)}
 >

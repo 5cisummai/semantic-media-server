@@ -9,7 +9,13 @@ const refreshCookieDeleteOpts = {
 };
 
 // Routes accessible without a valid JWT
-const PUBLIC_PATHS = ['/login', '/signup', '/api/auth/login', '/api/auth/signup', '/api/auth/logout'];
+const PUBLIC_PATHS = [
+	'/login',
+	'/signup',
+	'/api/auth/login',
+	'/api/auth/signup',
+	'/api/auth/logout'
+];
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const path = event.url.pathname;
@@ -54,9 +60,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	// Allow public paths without authentication
-	const isPublic = PUBLIC_PATHS.some(
-		(p) => path === p || path.startsWith(p + '/')
-	);
+	const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + '/'));
 
 	if (!isPublic && !event.locals.user) {
 		// API routes get a 401 JSON response; page routes get a redirect

@@ -46,10 +46,7 @@ const workspaceIndex = new Map<string, Set<number>>();
  * Subscribe to events for a specific workspace.
  * Returns an unsubscribe function.
  */
-export function subscribe(
-	workspaceId: string,
-	listener: WorkspaceEventListener
-): () => void {
+export function subscribe(workspaceId: string, listener: WorkspaceEventListener): () => void {
 	const id = nextId++;
 	subscriptions.set(id, { id, workspaceId, listener });
 

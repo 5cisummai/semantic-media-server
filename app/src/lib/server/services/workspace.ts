@@ -118,10 +118,7 @@ export async function createWorkspace(
 	};
 }
 
-export async function getWorkspace(
-	workspaceId: string,
-	userId: string
-): Promise<WorkspaceDetail> {
+export async function getWorkspace(workspaceId: string, userId: string): Promise<WorkspaceDetail> {
 	const workspace = await db.workspace.findUnique({
 		where: { id: workspaceId },
 		include: {
@@ -346,11 +343,7 @@ export async function getOrCreateDefaultWorkspace(creatorUserId: string): Promis
 	});
 	if (existing) return existing.id;
 
-	const ws = await createWorkspace(
-		DEFAULT_WORKSPACE_NAME,
-		DEFAULT_WORKSPACE_SLUG,
-		creatorUserId
-	);
+	const ws = await createWorkspace(DEFAULT_WORKSPACE_NAME, DEFAULT_WORKSPACE_SLUG, creatorUserId);
 	return ws.id;
 }
 

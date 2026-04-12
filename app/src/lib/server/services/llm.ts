@@ -24,7 +24,6 @@ export interface ChatOptions {
 	top_p?: number;
 }
 
-
 function getProvider(): LlmProvider {
 	const provider = (env.LLM_PROVIDER ?? 'ollama').toLowerCase();
 	if (provider === 'openai') return 'openai';
@@ -62,7 +61,6 @@ function mapMessagesForOpenAI(messages: LlmMessage): {
 		...(messages.tool_calls ? { tool_calls: messages.tool_calls } : {})
 	};
 }
-
 
 async function chatWithOllama(
 	messages: LlmMessage[],
@@ -397,6 +395,21 @@ export async function chatText(
 
 export async function chatFast(prompt: string, system?: string): Promise<string> {
 	return chatText(prompt, system, { model: env.LLM_FAST_MODEL });
+}
+
+const CHAT_TITLE_SYSTEM = `You label chat sessions. Respond with only a short title: a few words that summarize the user's message. No quotes. No explanation. One line.`;
+
+/**
+ * Turn the first user message into a concise chat title via the configured LLM (see llm.ts / chatText).
+ */
+export async function summarizePromptAsChatTitle(userMessage: string): Promise<string> {
+	const text = userMessage.replace(/\s+/g, ' ').trim().slice(0, 8000);
+	if (!text) return '';
+	return chatText(text, CHAT_TITLE_SYSTEM, {
+		model: env.LLM_FAST_MODEL ?? env.LLM_MODEL,
+		temperature: 0.2,
+		timeout: 20_000
+	});
 }
 
 export async function isAvailable(): Promise<boolean> {

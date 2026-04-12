@@ -153,9 +153,18 @@ function addFiles(destination: string, incoming: FileList | File[]) {
 		...current,
 		items: [...current.items, ...nextItems],
 		activeDestination: destination || current.activeDestination,
-		batchPhase: current.batchPhase === 'complete' || current.batchPhase === 'error' ? 'idle' : current.batchPhase,
-		batchMessage: current.batchPhase === 'complete' || current.batchPhase === 'error' ? null : current.batchMessage,
-		lastIndexedCount: current.batchPhase === 'complete' || current.batchPhase === 'error' ? 0 : current.lastIndexedCount
+		batchPhase:
+			current.batchPhase === 'complete' || current.batchPhase === 'error'
+				? 'idle'
+				: current.batchPhase,
+		batchMessage:
+			current.batchPhase === 'complete' || current.batchPhase === 'error'
+				? null
+				: current.batchMessage,
+		lastIndexedCount:
+			current.batchPhase === 'complete' || current.batchPhase === 'error'
+				? 0
+				: current.lastIndexedCount
 	}));
 }
 
@@ -177,10 +186,11 @@ function clearFinished() {
 	state.update((current) => ({
 		...current,
 		items: current.items.filter((item) => item.status !== 'done' && item.status !== 'error'),
-		batchPhase:
-			current.items.some((item) => item.status === 'pending' || item.status === 'uploading')
-				? current.batchPhase
-				: 'idle',
+		batchPhase: current.items.some(
+			(item) => item.status === 'pending' || item.status === 'uploading'
+		)
+			? current.batchPhase
+			: 'idle',
 		batchMessage: null,
 		lastIndexedCount: 0
 	}));
@@ -189,9 +199,15 @@ function clearFinished() {
 function dismissBatchMessage() {
 	state.update((current) => ({
 		...current,
-		batchPhase: current.batchPhase === 'uploading' || current.batchPhase === 'indexing' ? current.batchPhase : 'idle',
+		batchPhase:
+			current.batchPhase === 'uploading' || current.batchPhase === 'indexing'
+				? current.batchPhase
+				: 'idle',
 		batchMessage: null,
-		lastIndexedCount: current.batchPhase === 'uploading' || current.batchPhase === 'indexing' ? current.lastIndexedCount : 0
+		lastIndexedCount:
+			current.batchPhase === 'uploading' || current.batchPhase === 'indexing'
+				? current.lastIndexedCount
+				: 0
 	}));
 }
 
@@ -206,7 +222,8 @@ async function uploadAll() {
 		batchPhase: 'uploading',
 		batchMessage: null,
 		lastIndexedCount: 0,
-		activeDestination: pendingItems[pendingItems.length - 1]?.destination ?? current.activeDestination
+		activeDestination:
+			pendingItems[pendingItems.length - 1]?.destination ?? current.activeDestination
 	}));
 
 	activeUploadRun = (async () => {

@@ -88,7 +88,13 @@ export type AgentEvent =
 	| { type: 'tool_thinking'; tool: string; thinking: string }
 	| { type: 'token'; text: string }
 	| { type: 'meta'; payload: AgentMetaPayload }
-	| { type: 'confirmation_required'; pendingId: string; tool: string; args: Record<string, unknown>; chatId: string }
+	| {
+			type: 'confirmation_required';
+			pendingId: string;
+			tool: string;
+			args: Record<string, unknown>;
+			chatId: string;
+	  }
 	| { type: 'message_saved'; role: 'user' | 'assistant'; id: string }
 	| { type: 'error'; message: string; code?: string }
 	| { type: 'done' };
@@ -141,5 +147,3 @@ export interface ConfirmRunConfig {
 export const DEFAULT_LIMIT = 8;
 export const DEFAULT_MIN_SCORE = 0.5;
 export const MAX_AGENT_ITERATIONS = 20;
-
-

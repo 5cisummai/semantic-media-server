@@ -40,14 +40,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	// Legacy route: auto-resolve to default workspace for backward compat
 	const workspaceId = await ensureDefaultWorkspaceMembership(user.id);
 
-	return runAgent(body.question ?? '', {
-		userId: user.id,
-		isAdmin: user.role === 'ADMIN',
-		chatId: body.chatId,
-		mode,
-		regenerate,
-		maxHistoryMessages: maxHistory,
-		autoApproveToolNames,
-		workspaceId
-	}, body.filters as import('$lib/server/agent/types').AskFilters | undefined);
+	return runAgent(
+		body.question ?? '',
+		{
+			userId: user.id,
+			isAdmin: user.role === 'ADMIN',
+			chatId: body.chatId,
+			mode,
+			regenerate,
+			maxHistoryMessages: maxHistory,
+			autoApproveToolNames,
+			workspaceId
+		},
+		body.filters as import('$lib/server/agent/types').AskFilters | undefined
+	);
 };

@@ -72,7 +72,10 @@ async function readSvgTextForEmbedding(entry: MediaEntry): Promise<string> {
 }
 
 function resolveReindexConcurrency(): number {
-	const candidate = Number.parseInt(env.EMBEDDING_REINDEX_CONCURRENCY ?? String(DEFAULT_REINDEX_CONCURRENCY), 10);
+	const candidate = Number.parseInt(
+		env.EMBEDDING_REINDEX_CONCURRENCY ?? String(DEFAULT_REINDEX_CONCURRENCY),
+		10
+	);
 
 	if (!Number.isFinite(candidate) || candidate < 1) {
 		return DEFAULT_REINDEX_CONCURRENCY;
@@ -144,9 +147,7 @@ export async function buildDirectoryListingContext(
 
 	const roots = getMediaRoots();
 	const indices =
-		typeof rootIndex === 'number'
-			? [rootIndex]
-			: Array.from({ length: roots.length }, (_, i) => i);
+		typeof rootIndex === 'number' ? [rootIndex] : Array.from({ length: roots.length }, (_, i) => i);
 
 	const parts: string[] = [];
 
@@ -251,7 +252,10 @@ export async function searchIngestChunks(
 	return hits.slice(0, limit);
 }
 
-export async function deleteSemanticEntryByRelativePath(relativePath: string, workspaceId?: string): Promise<void> {
+export async function deleteSemanticEntryByRelativePath(
+	relativePath: string,
+	workspaceId?: string
+): Promise<void> {
 	await brain.deletePoints(collectionName(workspaceId), [createPointId(relativePath)]);
 }
 
@@ -275,7 +279,11 @@ async function toMediaFileEntry(relativePath: string): Promise<MediaEntry | null
 	};
 }
 
-async function walkRoot(rootPath: string, rootIndex: number, relativePrefix = ''): Promise<MediaEntry[]> {
+async function walkRoot(
+	rootPath: string,
+	rootIndex: number,
+	relativePrefix = ''
+): Promise<MediaEntry[]> {
 	let dirents;
 	try {
 		dirents = await fs.readdir(path.join(rootPath, relativePrefix), { withFileTypes: true });
@@ -334,16 +342,16 @@ function rootIndexFromPath(relativePath: string): number {
 	return Number.isNaN(parsed) ? -1 : parsed;
 }
 
-async function makePoint(entry: MediaEntry): Promise<{ point: BrainPoint; usedImageEmbedding: boolean }> {
+async function makePoint(
+	entry: MediaEntry
+): Promise<{ point: BrainPoint; usedImageEmbedding: boolean }> {
 	const metadataText = buildMetadataText(entry);
 	let vector: number[];
 	let usedImageEmbedding = false;
 
 	if (isSvgFile(entry)) {
 		const svgBody = await readSvgTextForEmbedding(entry);
-		const textForEmbed = svgBody
-			? `${metadataText}\n--- svg source ---\n${svgBody}`
-			: metadataText;
+		const textForEmbed = svgBody ? `${metadataText}\n--- svg source ---\n${svgBody}` : metadataText;
 		vector = (await embedText(textForEmbed)).vector;
 	} else {
 		vector = (await embedText(metadataText)).vector;
@@ -463,7 +471,10 @@ export async function reindexSemanticCollection(workspaceId?: string): Promise<R
 	};
 }
 
-export async function indexFileByRelativePath(relativePath: string, workspaceId?: string): Promise<boolean> {
+export async function indexFileByRelativePath(
+	relativePath: string,
+	workspaceId?: string
+): Promise<boolean> {
 	const entry = await toMediaFileEntry(relativePath);
 	if (!entry) return false;
 
@@ -473,12 +484,22 @@ export async function indexFileByRelativePath(relativePath: string, workspaceId?
 	return true;
 }
 
-export async function semanticSearch(query: string, options?: { workspaceId?: string; mediaType?: MediaType; rootIndex?: number; limit?: number; minScore?: number }): Promise<SearchResult[]> {
+export async function semanticSearch(
+	query: string,
+	options?: {
+		workspaceId?: string;
+		mediaType?: MediaType;
+		rootIndex?: number;
+		limit?: number;
+		minScore?: number;
+	}
+): Promise<SearchResult[]> {
 	const vector = (await embedText(query)).vector;
 	const limit = Math.max(1, Math.min(options?.limit ?? 30, 100));
-	const minScore = typeof options?.minScore === 'number'
-		? options?.minScore
-		: Number.parseFloat(env.SEMANTIC_SEARCH_MIN_SCORE ?? '0.20');
+	const minScore =
+		typeof options?.minScore === 'number'
+			? options?.minScore
+			: Number.parseFloat(env.SEMANTIC_SEARCH_MIN_SCORE ?? '0.20');
 	const threshold = Number.isFinite(minScore) ? minScore : 0.2;
 
 	const must: Array<Record<string, unknown>> = [];

@@ -1,8 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import {
-	ensureOwnedChatSession,
-	getChatMessagesForUser
-} from '$lib/server/chat-store';
+import { ensureOwnedChatSession, getChatMessagesForUser } from '$lib/server/chat-store';
 import { db } from '$lib/server/db';
 import type { RequestHandler } from './$types';
 

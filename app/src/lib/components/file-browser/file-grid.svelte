@@ -263,7 +263,11 @@
 		{/if}
 
 		<Dialog.Footer>
-			<Button variant="outline" disabled={deleteSubmitting} onclick={() => (deleteDialogOpen = false)}>
+			<Button
+				variant="outline"
+				disabled={deleteSubmitting}
+				onclick={() => (deleteDialogOpen = false)}
+			>
 				Cancel
 			</Button>
 			<Button variant="destructive" onclick={confirmDelete} disabled={deleteSubmitting}>
@@ -287,10 +291,12 @@
 						<ContextMenu.Root>
 							<ContextMenu.Trigger>
 								<Button
-								variant="ghost"
-								class="w-full h-auto rounded-xl p-1 text-left {selectedPath === item.path ? 'bg-muted ring-1 ring-ring/60' : ''}"
-								onclick={() => selectEntry(item)}
-							>
+									variant="ghost"
+									class="h-auto w-full rounded-xl p-1 text-left {selectedPath === item.path
+										? 'bg-muted ring-1 ring-ring/60'
+										: ''}"
+									onclick={() => selectEntry(item)}
+								>
 									<FilePreviewTile
 										class="w-full"
 										item={{

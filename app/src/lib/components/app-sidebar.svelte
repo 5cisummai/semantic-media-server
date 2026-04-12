@@ -45,7 +45,12 @@
 	import NavUser from './nav-user.svelte';
 	import WorkspaceSwitcher from './workspace-switcher.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
+	import vectraspaceIconLight from '$lib/assets/logos/vectraspace-icon-light.png';
 	import type { ComponentProps } from 'svelte';
+
+	const sidebar = useSidebar();
+	const brandCollapsed = $derived(!sidebar.isMobile && sidebar.state === 'collapsed');
 
 	let {
 		ref = $bindable(null),
@@ -57,16 +62,16 @@
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
 	<Sidebar.Header>
-		<Sidebar.Menu>
-			<Sidebar.MenuItem>
-				<div
-					class="flex h-12 items-center gap-2 px-2 text-sidebar-foreground"
-					data-slot="sidebar-brand"
-				>
-					<span class="truncate font-semibold tracking-tight">Vectraspace</span>
-				</div>
-			</Sidebar.MenuItem>
-		</Sidebar.Menu>
+		<div
+			class="flex h-12 items-center gap-2 px-2 text-sidebar-foreground group-data-[collapsible=icon]:justify-center"
+			data-slot="sidebar-brand"
+			aria-label={brandCollapsed ? 'Vectraspace' : undefined}
+		>
+			<img src={vectraspaceIconLight} alt="" class="size-8 rounded-md" aria-hidden="true" />
+			<span class="truncate font-semibold tracking-tight group-data-[collapsible=icon]:hidden"
+				>Vectraspace</span
+			>
+		</div>
 		<WorkspaceSwitcher />
 	</Sidebar.Header>
 	<Sidebar.Content>

@@ -29,7 +29,11 @@ function makeReadonlyExecute<T extends Record<string, unknown>>(
 		ctx?.onEvent?.({ type: 'tool_start', tool: toolName, args: args as Record<string, unknown> });
 		const output = await fn(args, ctx);
 		const summary = summarizeToolResult(output);
-		ctx?.toolCalls.push({ tool: toolName, args: args as Record<string, unknown>, resultSummary: summary });
+		ctx?.toolCalls.push({
+			tool: toolName,
+			args: args as Record<string, unknown>,
+			resultSummary: summary
+		});
 		ctx?.onEvent?.({ type: 'tool_done', tool: toolName, resultSummary: summary });
 		return output;
 	};
@@ -46,9 +50,7 @@ export const listDirectoryTool = tool({
 	parameters: z.object({
 		path: z
 			.string()
-			.describe(
-				'Path in rootIndex/path format (for example "0/photos"), or empty string for root.'
-			)
+			.describe('Path in rootIndex/path format (for example "0/photos"), or empty string for root.')
 	}),
 	execute: makeReadonlyExecute('list_directory', async ({ path: targetPath }) => {
 		const entries = await listDirectory(targetPath);

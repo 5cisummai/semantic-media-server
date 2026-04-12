@@ -1,8 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import {
-	createWorkspace,
-	listWorkspacesForUser
-} from '$lib/server/services/workspace';
+import { createWorkspace, listWorkspacesForUser } from '$lib/server/services/workspace';
 import { createWorkspaceSchema, parseBody, requireAuth } from '$lib/server/api';
 import type { RequestHandler } from './$types';
 
@@ -18,12 +15,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	const body = await parseBody(request, createWorkspaceSchema);
 
 	try {
-		const workspace = await createWorkspace(
-			body.name,
-			body.slug,
-			user.id,
-			body.description
-		);
+		const workspace = await createWorkspace(body.name, body.slug, user.id, body.description);
 		return json({ workspace }, { status: 201 });
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : 'Failed to create workspace';

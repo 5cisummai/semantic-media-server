@@ -19,9 +19,7 @@ export const GET: RequestHandler = async ({ locals, request }) => {
 		start(controller) {
 			function send(chatId: string, status: ApiRunStatus) {
 				try {
-					controller.enqueue(
-						enc.encode(`data: ${JSON.stringify({ chatId, status })}\n\n`)
-					);
+					controller.enqueue(enc.encode(`data: ${JSON.stringify({ chatId, status })}\n\n`));
 				} catch {
 					// controller already closed — let cancel() tidy up
 				}

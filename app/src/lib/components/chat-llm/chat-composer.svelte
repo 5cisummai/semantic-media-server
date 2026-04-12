@@ -54,9 +54,9 @@
 			{placeholder}
 			rows={1}
 			{disabled}
-			class="flex-1 resize-none border-0 bg-transparent! shadow-none focus-visible:ring-0 max-h-48"
+			class="max-h-48 flex-1 resize-none border-0 bg-transparent! shadow-none focus-visible:ring-0"
 		/>
-	
+
 		<Button
 			type="submit"
 			size="icon"

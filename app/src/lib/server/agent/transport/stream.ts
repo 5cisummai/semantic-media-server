@@ -86,10 +86,7 @@ export function buildStreamResponse(
 				// Stream token deltas (tool events handled inside tool.execute() via appCtx.onEvent)
 				let finalText = '';
 				for await (const event of sdkResult) {
-					if (
-						event.type === 'raw_model_stream_event' &&
-						event.data.type === 'output_text_delta'
-					) {
+					if (event.type === 'raw_model_stream_event' && event.data.type === 'output_text_delta') {
 						finalText += event.data.delta;
 						writeLine({ type: 'token', text: event.data.delta });
 					}
@@ -175,5 +172,3 @@ export function buildStreamResponse(
 		}
 	});
 }
-
-

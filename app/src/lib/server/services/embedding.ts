@@ -19,7 +19,9 @@ function normalizeVector(vector: number[]): number[] {
 }
 
 export function getEmbeddingProvider(): EmbeddingProvider {
-	const provider = (env.EMBEDDING_PROVIDER ?? (env.MULTIMODAL_EMBEDDING_URL ? 'multimodal' : 'ollama')).toLowerCase();
+	const provider = (
+		env.EMBEDDING_PROVIDER ?? (env.MULTIMODAL_EMBEDDING_URL ? 'multimodal' : 'ollama')
+	).toLowerCase();
 	if (provider === 'openai') return 'openai';
 	if (provider === 'multimodal' || provider === 'qwen-vl') return 'multimodal';
 	return 'ollama';
@@ -118,7 +120,9 @@ async function embedTextWithOpenAICompatible(input: string): Promise<number[]> {
 	const baseUrl = env.OPENAI_BASE_URL ?? 'http://127.0.0.1:1234/v1';
 	const model = env.OPENAI_EMBED_MODEL ?? env.OPENAI_MODEL;
 	if (!model) {
-		throw new Error('OPENAI_EMBED_MODEL (or OPENAI_MODEL) is required when EMBEDDING_PROVIDER=openai');
+		throw new Error(
+			'OPENAI_EMBED_MODEL (or OPENAI_MODEL) is required when EMBEDDING_PROVIDER=openai'
+		);
 	}
 
 	const headers: Record<string, string> = {
@@ -136,7 +140,9 @@ async function embedTextWithOpenAICompatible(input: string): Promise<number[]> {
 	});
 
 	if (!response.ok) {
-		throw new Error(`OpenAI-compatible embedding request failed: ${response.status} ${response.statusText}`);
+		throw new Error(
+			`OpenAI-compatible embedding request failed: ${response.status} ${response.statusText}`
+		);
 	}
 
 	const body = (await response.json()) as {

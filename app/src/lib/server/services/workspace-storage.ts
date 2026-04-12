@@ -182,10 +182,7 @@ export async function copyWorkspaceFile(
 	await fs.cp(from.fullPath, to.fullPath, { recursive: true });
 }
 
-export async function mkdirInWorkspace(
-	workspaceId: string,
-	relativePath: string
-): Promise<void> {
+export async function mkdirInWorkspace(workspaceId: string, relativePath: string): Promise<void> {
 	const resolved = resolveWorkspacePath(workspaceId, relativePath);
 	if (!resolved) throw new Error('Invalid path');
 	await fs.mkdir(resolved.fullPath, { recursive: true });

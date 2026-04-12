@@ -50,9 +50,7 @@ export const workspaceDescriptionSchema = z
 
 // ── Endpoint schemas ─────────────────────────────────────────────────────────
 
-export const approveUserSchema = z
-	.object({ userId: cuidSchema })
-	.strict(); // Reject unexpected fields (mass assignment protection)
+export const approveUserSchema = z.object({ userId: cuidSchema }).strict(); // Reject unexpected fields (mass assignment protection)
 
 export const loginSchema = z
 	.object({

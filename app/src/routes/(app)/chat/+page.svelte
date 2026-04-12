@@ -15,7 +15,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import {
 		CHAT_AGENTS_SIDEBAR_COOKIE,
-		SIDEBAR_COOKIE_MAX_AGE,
+		SIDEBAR_COOKIE_MAX_AGE
 	} from '$lib/components/ui/sidebar/constants.js';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte.js';
 	import { dedupeChatsById } from '$lib/utils.js';
@@ -101,10 +101,9 @@
 		deleteSubmitting = true;
 		deleteError = null;
 		try {
-			const response = await fetch(
-				`/api/chats/${encodeURIComponent(deleteTarget.id)}`,
-				{ method: 'DELETE' }
-			);
+			const response = await fetch(`/api/chats/${encodeURIComponent(deleteTarget.id)}`, {
+				method: 'DELETE'
+			});
 			if (!response.ok) {
 				throw new Error(`Failed to delete chat (${response.status})`);
 			}
@@ -144,6 +143,10 @@
 			await tick();
 			if (data.initialMessage) {
 				await agentPanel?.startWithMessage(data.initialMessage);
+				// Clear ?q= so a page reload doesn't re-submit the same message
+				const cleanUrl = new URL(window.location.href);
+				cleanUrl.searchParams.delete('q');
+				window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search);
 			} else if (data.agentId) {
 				await agentPanel?.loadConversationFromServer(data.agentId);
 			} else if (agents.length > 0) {
@@ -151,84 +154,78 @@
 			}
 		})();
 	});
-
 </script>
 
 {#snippet agentsPanel()}
 	<Sidebar.Header class="border-b border-sidebar-border/60">
-				<div class="flex items-center justify-between px-1 py-1">
-					<h2 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Agents</h2>
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-sm"
-						class="h-7 w-7"
-						aria-label="Close agents sidebar"
-						onclick={() => setAgentSidebarOpen(false)}
-					>
-						<PanelLeftCloseIcon class="size-4" />
-					</Button>
-				</div>
-				<div class="pb-2">
-					<Button
-						variant="outline"
-						size="sm"
-						class="w-full justify-start gap-2"
-						onclick={startNewAgent}
-					>
-						<PlusIcon class="size-3.5" />
-						New agent
-					</Button>
-				</div>
-			</Sidebar.Header>
-			<Sidebar.Content class="[scrollbar-gutter:stable] flex-1 min-h-0 overflow-y-auto p-2">
-				{#if loadingAgents && agents.length === 0}
-					<p class="px-2 py-1 text-xs text-muted-foreground">Loading agents…</p>
-				{:else if agents.length === 0}
-					<p class="px-2 py-1 text-xs text-muted-foreground">No saved agents yet.</p>
-				{:else}
-					<Sidebar.Menu class="space-y-1">
-						{#each agents as agent (agent.id)}
-							<Sidebar.MenuItem>
-								<ContextMenu.Root>
-									<ContextMenu.Trigger class="w-full">
-										<AgentStatusItem
-											chatId={agent.id}
-											name={agent.title}
-											description="{agent.messageCount} message{agent.messageCount === 1
-												? ''
-												: 's'} · {relativeTimestamp(agent.updatedAt)}"
-											sessionStatus={agent.id === activeAgentId
-												? activeAgentStatus
-												: agent.status}
-											variant={agent.id === activeAgentId ? 'outline' : 'default'}
-											size="xs"
-											class="w-full cursor-pointer"
-											onclick={() => {
-												void selectAgent(agent.id);
-											}}
-										/>
-									</ContextMenu.Trigger>
-									<ContextMenu.Content class="w-48">
-										<ContextMenu.Item onclick={() => selectAgent(agent.id)}>
-											<FolderOpenIcon />
-											Open
-										</ContextMenu.Item>
-										<ContextMenu.Separator />
-										<ContextMenu.Item
-											variant="destructive"
-											onclick={() => openDeleteChatDialog(agent)}
-										>
-											<Trash2Icon />
-											Delete chat
-										</ContextMenu.Item>
-									</ContextMenu.Content>
-								</ContextMenu.Root>
-							</Sidebar.MenuItem>
-						{/each}
-					</Sidebar.Menu>
-				{/if}
-			</Sidebar.Content>
+		<div class="flex items-center justify-between px-1 py-1">
+			<h2 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Agents</h2>
+			<Button
+				type="button"
+				variant="ghost"
+				size="icon-sm"
+				class="h-7 w-7"
+				aria-label="Close agents sidebar"
+				onclick={() => setAgentSidebarOpen(false)}
+			>
+				<PanelLeftCloseIcon class="size-4" />
+			</Button>
+		</div>
+		<div class="pb-2">
+			<Button
+				variant="outline"
+				size="sm"
+				class="w-full justify-start gap-2"
+				onclick={startNewAgent}
+			>
+				<PlusIcon class="size-3.5" />
+				New agent
+			</Button>
+		</div>
+	</Sidebar.Header>
+	<Sidebar.Content class="min-h-0 flex-1 overflow-y-auto p-2 [scrollbar-gutter:stable]">
+		{#if loadingAgents && agents.length === 0}
+			<p class="px-2 py-1 text-xs text-muted-foreground">Loading agents…</p>
+		{:else if agents.length === 0}
+			<p class="px-2 py-1 text-xs text-muted-foreground">No saved agents yet.</p>
+		{:else}
+			<Sidebar.Menu class="space-y-1">
+				{#each agents as agent (agent.id)}
+					<Sidebar.MenuItem>
+						<ContextMenu.Root>
+							<ContextMenu.Trigger class="w-full">
+								<AgentStatusItem
+									chatId={agent.id}
+									name={agent.title}
+									description="{agent.messageCount} message{agent.messageCount === 1
+										? ''
+										: 's'} · {relativeTimestamp(agent.updatedAt)}"
+									sessionStatus={agent.id === activeAgentId ? activeAgentStatus : agent.status}
+									variant={agent.id === activeAgentId ? 'outline' : 'default'}
+									size="xs"
+									class="w-full cursor-pointer"
+									onclick={() => {
+										void selectAgent(agent.id);
+									}}
+								/>
+							</ContextMenu.Trigger>
+							<ContextMenu.Content class="w-48">
+								<ContextMenu.Item onclick={() => selectAgent(agent.id)}>
+									<FolderOpenIcon />
+									Open
+								</ContextMenu.Item>
+								<ContextMenu.Separator />
+								<ContextMenu.Item variant="destructive" onclick={() => openDeleteChatDialog(agent)}>
+									<Trash2Icon />
+									Delete chat
+								</ContextMenu.Item>
+							</ContextMenu.Content>
+						</ContextMenu.Root>
+					</Sidebar.MenuItem>
+				{/each}
+			</Sidebar.Menu>
+		{/if}
+	</Sidebar.Content>
 {/snippet}
 
 <div class="flex h-full min-h-0 w-full flex-col bg-background">
@@ -281,9 +278,7 @@
 								</Button>
 							{/snippet}
 						</Tooltip.Trigger>
-						<Tooltip.Content side="bottom" sideOffset={6}>
-							Open agents list
-						</Tooltip.Content>
+						<Tooltip.Content side="bottom" sideOffset={6}>Open agents list</Tooltip.Content>
 					</Tooltip.Root>
 				</div>
 			{/if}
@@ -325,4 +320,3 @@
 		</div>
 	{/if}
 </div>
-

@@ -84,14 +84,14 @@ Error bodies are usually JSON with a `message` string (SvelteKit convention), ex
 **Body**:
 
 | Field      | Type   | Required |
-|-----------|--------|----------|
-| `username`| string | yes      |
-| `password`| string | yes      |
+| ---------- | ------ | -------- |
+| `username` | string | yes      |
+| `password` | string | yes      |
 
 **Success (200)**: JSON
 
 | Field         | Type   |
-|---------------|--------|
+| ------------- | ------ |
 | `accessToken` | string |
 | `role`        | string |
 | `username`    | string |
@@ -111,10 +111,10 @@ Also sets `refreshToken` HTTP-only cookie (browser).
 
 **Body**:
 
-| Field         | Type   | Required |
-|---------------|--------|----------|
+| Field         | Type   | Required          |
+| ------------- | ------ | ----------------- |
 | `username`    | string | yes (min 3 chars) |
-| `displayName` | string | yes      |
+| `displayName` | string | yes               |
 | `password`    | string | yes (min 8 chars) |
 
 **Success (200)**: JSON may include `id`, `username`, `approved`, `role`, and `accessToken` if the user is auto-approved; cookie may be set in that case.
@@ -132,7 +132,7 @@ Also sets `refreshToken` HTTP-only cookie (browser).
 **Success (200)**: JSON user object:
 
 | Field         | Type    |
-|---------------|---------|
+| ------------- | ------- |
 | `id`          | string  |
 | `username`    | string  |
 | `displayName` | string  |
@@ -217,16 +217,16 @@ Also sets `refreshToken` HTTP-only cookie (browser).
 
 **Success (200)**: JSON array of drive info:
 
-| Field          | Type    | Description |
-|----------------|---------|-------------|
-| `index`        | number  | Root index |
-| `path`         | string  | Server path (internal) |
-| `name`         | string  | Display name |
-| `available`    | boolean | Whether stat succeeded |
-| `totalBytes`   | number? | If available |
-| `usedBytes`    | number? | If available |
-| `freeBytes`    | number? | If available |
-| `usedPercent`  | number? | If available |
+| Field         | Type    | Description            |
+| ------------- | ------- | ---------------------- |
+| `index`       | number  | Root index             |
+| `path`        | string  | Server path (internal) |
+| `name`        | string  | Display name           |
+| `available`   | boolean | Whether stat succeeded |
+| `totalBytes`  | number? | If available           |
+| `usedBytes`   | number? | If available           |
+| `freeBytes`   | number? | If available           |
+| `usedPercent` | number? | If available           |
 
 ---
 
@@ -262,13 +262,13 @@ Also sets `refreshToken` HTTP-only cookie (browser).
 
 **Query parameters**:
 
-| Param       | Type   | Required | Description |
-|------------|--------|----------|-------------|
-| `q`        | string | yes      | Search query (embedded search) |
-| `mediaType`| string | no       | One of: `video`, `audio`, `image`, `document`, `other` |
-| `root`     | number | no       | Media root index |
-| `limit`    | number | no       | Max results |
-| `minScore` | number | no       | Minimum similarity score |
+| Param       | Type   | Required | Description                                            |
+| ----------- | ------ | -------- | ------------------------------------------------------ |
+| `q`         | string | yes      | Search query (embedded search)                         |
+| `mediaType` | string | no       | One of: `video`, `audio`, `image`, `document`, `other` |
+| `root`      | number | no       | Media root index                                       |
+| `limit`     | number | no       | Max results                                            |
+| `minScore`  | number | no       | Minimum similarity score                               |
 
 **Success (200)**:
 
@@ -282,18 +282,18 @@ Also sets `refreshToken` HTTP-only cookie (browser).
 
 Each **SearchResult** item:
 
-| Field        | Type   |
-|-------------|--------|
-| `id`        | string |
-| `score`     | number |
-| `name`      | string |
-| `path`      | string |
+| Field       | Type     |
+| ----------- | -------- |
+| `id`        | string   |
+| `score`     | number   |
+| `name`      | string   |
+| `path`      | string   |
 | `type`      | `"file"` |
-| `mediaType` | string |
-| `mimeType`  | string? |
-| `size`      | number? |
-| `modified`  | string? |
-| `rootIndex` | number |
+| `mediaType` | string   |
+| `mimeType`  | string?  |
+| `size`      | number?  |
+| `modified`  | string?  |
+| `rootIndex` | number   |
 
 **Errors**: 400 if `q` missing, 500 on search failure.
 
@@ -334,32 +334,32 @@ Runs a **server-side agent loop** (up to 20 iterations) with tool calling (`sear
 
 **Body**:
 
-| Field       | Type    | Required | Description |
-|------------|---------|----------|-------------|
-| `question` | string  | yes      | User question |
-| `history`  | array   | no       | Prior turns; see **LlmMessage** below |
-| `filters`  | object  | no       | Default scope for `search_files` tool |
+| Field      | Type    | Required | Description                                                      |
+| ---------- | ------- | -------- | ---------------------------------------------------------------- |
+| `question` | string  | yes      | User question                                                    |
+| `history`  | array   | no       | Prior turns; see **LlmMessage** below                            |
+| `filters`  | object  | no       | Default scope for `search_files` tool                            |
 | `stream`   | boolean | no       | If `true`, NDJSON stream; if false/omitted, single JSON response |
 
 **filters** (optional; defaults applied when the model calls `search_files` without overriding):
 
-| Field       | Type   | Description |
-|------------|--------|-------------|
-| `mediaType`| string | Optional media type filter |
-| `rootIndex`| number | Optional root index |
-| `fileIds`  | string[] | Present in API; tool path may not use directly — reserved for future scoping |
-| `limit`    | number | Default **8** if omitted |
-| `minScore` | number | Default **0.5** if omitted |
+| Field       | Type     | Description                                                                  |
+| ----------- | -------- | ---------------------------------------------------------------------------- |
+| `mediaType` | string   | Optional media type filter                                                   |
+| `rootIndex` | number   | Optional root index                                                          |
+| `fileIds`   | string[] | Present in API; tool path may not use directly — reserved for future scoping |
+| `limit`     | number   | Default **8** if omitted                                                     |
+| `minScore`  | number   | Default **0.5** if omitted                                                   |
 
 **LlmMessage** (for `history`):
 
-| Field           | Type   | Description |
-|----------------|--------|-------------|
+| Field          | Type                                                | Description                                                         |
+| -------------- | --------------------------------------------------- | ------------------------------------------------------------------- |
 | `role`         | `"user"` \| `"assistant"` \| `"system"` \| `"tool"` | Server normalizes history to user/assistant only for the agent turn |
-| `content`      | string | Message text |
-| `tool_call_id` | string | Optional (tool role) |
-| `name`         | string | Optional (tool role) |
-| `tool_calls`   | unknown| Optional (assistant with tool calls) |
+| `content`      | string                                              | Message text                                                        |
+| `tool_call_id` | string                                              | Optional (tool role)                                                |
+| `name`         | string                                              | Optional (tool role)                                                |
+| `tool_calls`   | unknown                                             | Optional (assistant with tool calls)                                |
 
 Clients may send only `{ role, content }` pairs for `user` and `assistant`.
 
@@ -367,19 +367,19 @@ Clients may send only `{ role, content }` pairs for `user` and `assistant`.
 
 **Success (200)**: `Content-Type: application/json`
 
-| Field         | Type   | Description |
-|---------------|--------|-------------|
-| `answer`      | string | Final assistant text |
-| `sources`     | array  | Accumulated from `search_files` tool calls |
-| `filters`     | object | Echo of normalized filters |
-| `model`       | string | LLM model id from env |
-| `toolCalls`   | array  | Tool invocations summary |
-| `iterations`  | number | Agent loop iterations used |
+| Field        | Type   | Description                                |
+| ------------ | ------ | ------------------------------------------ |
+| `answer`     | string | Final assistant text                       |
+| `sources`    | array  | Accumulated from `search_files` tool calls |
+| `filters`    | object | Echo of normalized filters                 |
+| `model`      | string | LLM model id from env                      |
+| `toolCalls`  | array  | Tool invocations summary                   |
+| `iterations` | number | Agent loop iterations used                 |
 
 **Source** item:
 
-| Field       | Type   |
-|------------|--------|
+| Field      | Type   |
+| ---------- | ------ |
 | `fileId`   | string |
 | `filePath` | string |
 | `chunk`    | string |
@@ -387,11 +387,11 @@ Clients may send only `{ role, content }` pairs for `user` and `assistant`.
 
 **toolCalls** item:
 
-| Field            | Type   |
-|-----------------|--------|
-| `tool`           | string |
-| `args`           | object |
-| `resultSummary`  | string |
+| Field           | Type   |
+| --------------- | ------ |
+| `tool`          | string |
+| `args`          | object |
+| `resultSummary` | string |
 
 #### Response — `stream: true`
 
@@ -402,12 +402,12 @@ Clients may send only `{ role, content }` pairs for `user` and `assistant`.
 
 Line types:
 
-| `type`   | Description |
-|----------|-------------|
-| `meta`   | First meaningful line: includes `sources`, `filters`, `model`, `toolCalls`, `iterations` (same as non-stream final metadata) |
-| `delta`  | `{ "type": "delta", "text": "<chunk>" }` — concatenated `text` forms the full `answer` |
-| `done`   | `{ "type": "done" }` — stream complete |
-| `error`  | `{ "type": "error", "message": "<string>" }` — terminal error in stream |
+| `type`  | Description                                                                                                                  |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `meta`  | First meaningful line: includes `sources`, `filters`, `model`, `toolCalls`, `iterations` (same as non-stream final metadata) |
+| `delta` | `{ "type": "delta", "text": "<chunk>" }` — concatenated `text` forms the full `answer`                                       |
+| `done`  | `{ "type": "done" }` — stream complete                                                                                       |
+| `error` | `{ "type": "error", "message": "<string>" }` — terminal error in stream                                                      |
 
 **Note**: Streaming runs the full agent on the server first, then chunks the final `answer` for compatibility with clients that expect incremental text. Metadata reflects the completed agent run.
 
@@ -448,10 +448,10 @@ Line types:
 
 **Fields**:
 
-| Field         | Type | Required | Description |
-|---------------|------|----------|-------------|
-| `file`        | file | yes      | File binary |
-| `destination` | string | yes    | Relative directory path (e.g. `0/uploads`) where the file should be written |
+| Field         | Type   | Required | Description                                                                 |
+| ------------- | ------ | -------- | --------------------------------------------------------------------------- |
+| `file`        | file   | yes      | File binary                                                                 |
+| `destination` | string | yes      | Relative directory path (e.g. `0/uploads`) where the file should be written |
 
 **Success (200)**:
 
@@ -559,13 +559,13 @@ Also removes matching `uploadedFile` rows and attempts semantic index cleanup fo
 
 Tool schemas are defined in `app/src/lib/server/tools/definitions.ts`. The LLM may call:
 
-| Tool                 | Purpose |
-|----------------------|---------|
+| Tool                 | Purpose                                                             |
+| -------------------- | ------------------------------------------------------------------- |
 | `search_files`       | Semantic search over the filename/metadata index (`semanticSearch`) |
-| `list_directory`     | List folder contents (`list_directory`) |
-| `get_file_info`      | File or directory metadata |
-| `read_file`          | Read text-oriented file content where supported |
-| `search_by_metadata` | Filter vector DB by metadata without a semantic query |
+| `list_directory`     | List folder contents (`list_directory`)                             |
+| `get_file_info`      | File or directory metadata                                          |
+| `read_file`          | Read text-oriented file content where supported                     |
+| `search_by_metadata` | Filter vector DB by metadata without a semantic query               |
 
 Clients do not invoke these directly; they are used inside `POST /api/brain/ask`.
 

@@ -145,8 +145,7 @@
 			} else {
 				ingestStatus = 'error';
 				ingestMessage =
-					data?.message ??
-					(res.status === 403 ? 'Forbidden (admin only)' : 'Ingest failed');
+					data?.message ?? (res.status === 403 ? 'Forbidden (admin only)' : 'Ingest failed');
 			}
 		} catch (e) {
 			console.error('Failed to ingest', e);
@@ -169,10 +168,10 @@
 	});
 </script>
 
-<div class="min-h-full bg-background text-foreground p-4 sm:p-6">
+<div class="min-h-full bg-background p-4 text-foreground sm:p-6">
 	<main class="mx-auto flex w-full max-w-360 flex-col gap-8">
 		<section class="flex flex-col gap-2">
-			<p class="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Settings</p>
+			<p class="text-xs font-medium tracking-[0.14em] text-muted-foreground uppercase">Settings</p>
 			<h1 class="text-2xl font-semibold">Settings</h1>
 			<p class="max-w-2xl text-sm text-muted-foreground">
 				Manage your account settings and preferences.
@@ -206,7 +205,7 @@
 					<div class="space-y-4">
 						{#each drives as drive}
 							<Card class="p-4">
-								<div class="flex items-center justify-between mb-2">
+								<div class="mb-2 flex items-center justify-between">
 									<div class="flex items-center gap-2">
 										<HardDriveIcon class="size-5 text-muted-foreground" />
 										<span class="font-medium">{drive.name}</span>
@@ -218,7 +217,7 @@
 										</span>
 									{/if}
 								</div>
-								<p class="text-xs text-muted-foreground mb-3 font-mono">{drive.path}</p>
+								<p class="mb-3 font-mono text-xs text-muted-foreground">{drive.path}</p>
 								{#if drive.available && drive.totalBytes}
 									<Progress.Root value={drive.usedPercent ?? 0} max={100} class="mb-2" />
 									<div class="flex justify-between text-xs text-muted-foreground">
@@ -234,55 +233,60 @@
 				{/if}
 
 				<Card class="bg-muted/50 p-4">
-					<h3 class="text-sm font-medium mb-2">Adding More Drives</h3>
+					<h3 class="mb-2 text-sm font-medium">Adding More Drives</h3>
 					<p class="text-sm text-muted-foreground">
-						To add more storage drives, edit the <code class="text-xs bg-muted px-1 rounded">.env</code> file and add paths separated by commas to the <code class="text-xs bg-muted px-1 rounded">MEDIA_ROOTS</code> variable:
+						To add more storage drives, edit the <code class="rounded bg-muted px-1 text-xs"
+							>.env</code
+						>
+						file and add paths separated by commas to the
+						<code class="rounded bg-muted px-1 text-xs">MEDIA_ROOTS</code> variable:
 					</p>
-					<code class="block mt-2 text-xs bg-muted p-2 rounded">MEDIA_ROOTS=/path/to/drive1,/path/to/drive2</code>
+					<code class="mt-2 block rounded bg-muted p-2 text-xs"
+						>MEDIA_ROOTS=/path/to/drive1,/path/to/drive2</code
+					>
 				</Card>
 
 				<Card class="p-4">
-					<h3 class="text-sm font-medium mb-2">Search &amp; AI chat indexing</h3>
-					<p class="text-sm text-muted-foreground mb-3">
-						<strong class="font-medium text-foreground">Reindex</strong> refreshes the filename and metadata
-						vector index for search.
+					<h3 class="mb-2 text-sm font-medium">Search &amp; AI chat indexing</h3>
+					<p class="mb-3 text-sm text-muted-foreground">
+						<strong class="font-medium text-foreground">Reindex</strong> refreshes the filename and
+						metadata vector index for search.
 						<strong class="font-medium text-foreground">Ingest</strong> reads text and PDFs and stores
 						chunks for the chat assistant (separate from reindex).
 					</p>
 					{#if isAdmin}
 						<div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-							<Button
-							onclick={reindex}
-							disabled={reindexing || ingestingRoot !== null}
-						>
-							<RefreshCwIcon class="size-4 {reindexing ? 'animate-spin' : ''}" />
-							{reindexing ? 'Reindexing...' : 'Reindex search'}
-						</Button>
+							<Button onclick={reindex} disabled={reindexing || ingestingRoot !== null}>
+								<RefreshCwIcon class="size-4 {reindexing ? 'animate-spin' : ''}" />
+								{reindexing ? 'Reindexing...' : 'Reindex search'}
+							</Button>
 						</div>
 						{#if reindexStatus === 'success'}
 							<p class="mt-2 text-sm text-green-600">Reindex completed successfully.</p>
 						{:else if reindexStatus === 'error'}
-							<p class="mt-2 text-sm text-destructive">Reindex failed. Try again or check server logs.</p>
+							<p class="mt-2 text-sm text-destructive">
+								Reindex failed. Try again or check server logs.
+							</p>
 						{/if}
 
 						<div class="mt-4 border-t border-border pt-4">
-							<p class="text-sm font-medium mb-2">Ingest file contents</p>
-							<p class="text-sm text-muted-foreground mb-3">
+							<p class="mb-2 text-sm font-medium">Ingest file contents</p>
+							<p class="mb-3 text-sm text-muted-foreground">
 								Full pass on one drive; large libraries can take a while.
 							</p>
 							<div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
 								{#each drives as drive}
 									{#if drive.available}
 										<Button
-									variant="outline"
-									onclick={() => ingestDirectory(drive.index)}
-									disabled={reindexing || ingestingRoot !== null}
-								>
-									<FolderInputIcon
-										class="size-4 {ingestingRoot === drive.index ? 'animate-pulse' : ''}"
-									/>
-									{ingestingRoot === drive.index ? 'Ingesting…' : `Ingest ${drive.name}`}
-								</Button>
+											variant="outline"
+											onclick={() => ingestDirectory(drive.index)}
+											disabled={reindexing || ingestingRoot !== null}
+										>
+											<FolderInputIcon
+												class="size-4 {ingestingRoot === drive.index ? 'animate-pulse' : ''}"
+											/>
+											{ingestingRoot === drive.index ? 'Ingesting…' : `Ingest ${drive.name}`}
+										</Button>
 									{/if}
 								{/each}
 							</div>
@@ -302,11 +306,11 @@
 
 			<Tabs.Content value="assistant" class="space-y-4">
 				<Card class="p-4">
-					<h3 class="text-sm font-medium mb-1">AI assistant — file actions</h3>
-					<p class="text-sm text-muted-foreground mb-4">
-						When the chat assistant wants to change files (delete, move, copy, or create folders), it
-						normally asks for confirmation. You can auto-approve specific action types so they run
-						without a prompt. Preferences are stored in this browser only.
+					<h3 class="mb-1 text-sm font-medium">AI assistant — file actions</h3>
+					<p class="mb-4 text-sm text-muted-foreground">
+						When the chat assistant wants to change files (delete, move, copy, or create folders),
+						it normally asks for confirmation. You can auto-approve specific action types so they
+						run without a prompt. Preferences are stored in this browser only.
 					</p>
 					<ul class="flex flex-col gap-3">
 						{#each AUTO_APPROVE_SETTINGS as opt (opt.id)}
@@ -315,14 +319,14 @@
 									class="flex cursor-pointer items-start gap-3 rounded-md border border-transparent p-2 hover:bg-muted/50 has-focus-visible:ring-2 has-focus-visible:ring-ring"
 								>
 									<Checkbox
-								checked={agentAutoApprove[opt.id]}
-								onCheckedChange={(checked) => {
-									const on = !!checked;
-									setAutoApproveSettingEnabled(opt.id, on);
-									agentAutoApprove = { ...agentAutoApprove, [opt.id]: on };
-								}}
-								class="mt-0.5"
-							/>
+										checked={agentAutoApprove[opt.id]}
+										onCheckedChange={(checked) => {
+											const on = !!checked;
+											setAutoApproveSettingEnabled(opt.id, on);
+											agentAutoApprove = { ...agentAutoApprove, [opt.id]: on };
+										}}
+										class="mt-0.5"
+									/>
 									<span class="min-w-0">
 										<span class="block text-sm font-medium text-foreground">{opt.label}</span>
 										<span class="block text-xs text-muted-foreground">{opt.description}</span>
@@ -377,23 +381,23 @@
 								</div>
 								<div class="flex gap-2">
 									<Button
-									variant="outline"
-									size="sm"
-									class="text-green-600 border-green-500/30 hover:bg-green-500/10"
-									onclick={() => approveUser(pending.id)}
-								>
-									<CheckIcon class="size-4" />
-									Accept
-								</Button>
+										variant="outline"
+										size="sm"
+										class="border-green-500/30 text-green-600 hover:bg-green-500/10"
+										onclick={() => approveUser(pending.id)}
+									>
+										<CheckIcon class="size-4" />
+										Accept
+									</Button>
 									<Button
-									variant="outline"
-									size="sm"
-									class="text-destructive border-destructive/30 hover:bg-destructive/10"
-									onclick={() => rejectUser(pending.id)}
-								>
-									<XIcon class="size-4" />
-									Reject
-								</Button>
+										variant="outline"
+										size="sm"
+										class="border-destructive/30 text-destructive hover:bg-destructive/10"
+										onclick={() => rejectUser(pending.id)}
+									>
+										<XIcon class="size-4" />
+										Reject
+									</Button>
 								</div>
 							</Card>
 						{/each}
@@ -403,15 +407,15 @@
 
 			<Tabs.Content value="info" class="space-y-4">
 				<Card class="p-4">
-					<h3 class="text-sm font-medium mb-2">Version</h3>
+					<h3 class="mb-2 text-sm font-medium">Version</h3>
 					<p class="text-sm text-muted-foreground">Vectraspace Media Server v0.1.0</p>
 				</Card>
 
 				<Card class="p-4">
-					<h3 class="text-sm font-medium mb-2">Legal</h3>
+					<h3 class="mb-2 text-sm font-medium">Legal</h3>
 					<p class="text-sm text-muted-foreground">
-						This software is provided as-is for personal use. Use at your own risk.
-						Ensure you have proper backups of your media files.
+						This software is provided as-is for personal use. Use at your own risk. Ensure you have
+						proper backups of your media files.
 					</p>
 				</Card>
 			</Tabs.Content>

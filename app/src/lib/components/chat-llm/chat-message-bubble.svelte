@@ -33,8 +33,7 @@
 			message.role === 'assistant' && message.assistantVariants?.length
 				? (() => {
 						const v = message.assistantVariants!;
-						const idx =
-							message.variantIndex !== undefined ? message.variantIndex : v.length - 1;
+						const idx = message.variantIndex !== undefined ? message.variantIndex : v.length - 1;
 						return v[Math.max(0, Math.min(idx, v.length - 1))] ?? message.content;
 					})()
 				: message.content;
@@ -46,9 +45,9 @@
 	);
 	const variantPos = $derived(
 		message.role === 'assistant' && message.assistantVariants?.length
-			? (message.variantIndex !== undefined
+			? ((message.variantIndex !== undefined
 					? message.variantIndex + 1
-					: message.assistantVariants!.length) ?? 1
+					: message.assistantVariants!.length) ?? 1)
 			: 0
 	);
 	const showVariants = $derived(variantCount > 1);
@@ -63,32 +62,27 @@
 	}
 </script>
 
-<div
-	class="w-full border-b border-border/70 py-5 last:border-b-0"
-	data-message-id={message.id}
->
+<div class="w-full border-b border-border/70 py-5 last:border-b-0" data-message-id={message.id}>
 	<div class="flex w-full flex-col gap-2">
 		<div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-			<span class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+			<span class="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
 				{message.role === 'user' ? 'You' : 'Assistant'}
 			</span>
 			{#if message.role === 'user' && message.editedFrom}
-				<span class="text-[10px] font-medium uppercase text-muted-foreground">Edited</span>
+				<span class="text-[10px] font-medium text-muted-foreground uppercase">Edited</span>
 			{/if}
 			{#if message.role === 'assistant' && message.model}
 				<span class="text-[11px] text-muted-foreground">· {message.model}</span>
 			{/if}
 		</div>
 
-		<div
-			class="border-l-2 pl-3 {message.role === 'user'
-				? 'border-primary/50'
-				: 'border-border'}"
-		>
+		<div class="border-l-2 pl-3 {message.role === 'user' ? 'border-primary/50' : 'border-border'}">
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="text-[15px] leading-relaxed {message.role === 'user' && !busy ? 'cursor-pointer' : ''}"
+				class="text-[15px] leading-relaxed {message.role === 'user' && !busy
+					? 'cursor-pointer'
+					: ''}"
 				title={message.role === 'user' && !busy ? 'Click to edit' : undefined}
 				onclick={message.role === 'user' ? onUserBlockClick : undefined}
 			>
@@ -103,7 +97,9 @@
 					<div
 						class="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-border/60 pt-3"
 					>
-						<span class="shrink-0 text-[10px] font-medium tracking-wide uppercase text-muted-foreground">
+						<span
+							class="shrink-0 text-[10px] font-medium tracking-wide text-muted-foreground uppercase"
+						>
 							Sources
 						</span>
 						{#each message.sources as source (source.fileId)}
@@ -136,7 +132,7 @@
 							>
 								<ChevronLeftIcon class="size-4" />
 							</Button>
-							<span class="min-w-12 text-center text-[11px] tabular-nums text-muted-foreground">
+							<span class="min-w-12 text-center text-[11px] text-muted-foreground tabular-nums">
 								{variantPos}/{variantCount}
 							</span>
 							<Button
@@ -144,8 +140,7 @@
 								variant="ghost"
 								size="icon"
 								class="size-7"
-								disabled={busy ||
-									(message.variantIndex ?? variantCount - 1) >= variantCount - 1}
+								disabled={busy || (message.variantIndex ?? variantCount - 1) >= variantCount - 1}
 								onclick={() => onVariantNext?.()}
 								aria-label="Newer version"
 							>

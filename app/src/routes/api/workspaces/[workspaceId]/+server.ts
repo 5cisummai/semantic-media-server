@@ -1,9 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import {
-	getWorkspace,
-	updateWorkspace,
-	deleteWorkspace
-} from '$lib/server/services/workspace';
+import { getWorkspace, updateWorkspace, deleteWorkspace } from '$lib/server/services/workspace';
 import { parseBody, updateWorkspaceSchema } from '$lib/server/api';
 import { requireWorkspaceAccess } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';

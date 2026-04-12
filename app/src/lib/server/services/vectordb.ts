@@ -182,7 +182,10 @@ export const brain = {
 			filter?: { must: Array<Record<string, unknown>> };
 			withPayload?: boolean;
 		}
-	): Promise<{ points: Array<{ id: string | number; payload?: Record<string, unknown> }>; nextOffset: string | number | null }> {
+	): Promise<{
+		points: Array<{ id: string | number; payload?: Record<string, unknown> }>;
+		nextOffset: string | number | null;
+	}> {
 		const response: ScrollResponse = await request<ScrollResponse>(
 			`/collections/${collection}/points/scroll`,
 			{

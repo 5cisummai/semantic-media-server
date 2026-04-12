@@ -166,119 +166,120 @@
 </script>
 
 <div class="min-h-full min-w-0 bg-background text-foreground">
-	<main class="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-10 px-4 py-10 sm:px-6">
-		<!-- ── Hero / Composer ─────────────────────────────────────────────── -->
-		<section class="flex min-w-0 flex-col items-center gap-6 text-center">
-			<div class="flex flex-col gap-1">
-				<p class="text-sm text-muted-foreground">
-					{greeting()}{username ? `, ${username}` : ''}
-				</p>
-				<h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">What can I help with?</h1>
-			</div>
-
-			<!-- Composer -->
-			<form
-				onsubmit={(e) => {
-					e.preventDefault();
-					submitComposer();
-				}}
-				class="w-full max-w-2xl"
-			>
-				<div
-					class="flex items-end gap-2 rounded-2xl border border-border bg-muted/20 px-3 py-2 shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-1 focus-within:ring-ring/40"
-				>
-					<Textarea
-						bind:ref={textareaEl}
-						bind:value={composerValue}
-						oninput={resizeComposer}
-						onkeydown={(e) => {
-							if (e.key === 'Enter' && !e.shiftKey) {
-								e.preventDefault();
-								submitComposer();
-							}
-						}}
-						placeholder="Ask anything about your media library…"
-						rows={1}
-						class="max-h-48 flex-1 resize-none border-0 bg-transparent! shadow-none focus-visible:ring-0"
-					/>
-					<Button
-						type="submit"
-						size="icon"
-						disabled={!composerValue.trim()}
-						class="mb-0.5 size-8 shrink-0 rounded-xl bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40"
-						aria-label="Send"
-					>
-						<ArrowUpIcon class="size-4" />
-					</Button>
+	<main class="mx-auto flex w-full min-w-0 flex-col gap-10 px-4 py-10 sm:px-6 lg:px-8">
+		<div class="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-10">
+			<section class="flex w-full min-w-0 flex-col items-center gap-6 text-center">
+				<div class="flex flex-col gap-1">
+					<p class="text-sm text-muted-foreground">
+						{greeting()}{username ? `, ${username}` : ''}
+					</p>
+					<h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">What can I help with?</h1>
 				</div>
-			</form>
 
-			<!-- Suggestion chips -->
-			<div class="flex flex-wrap justify-center gap-2">
-				{#each suggestions as s (s)}
-					<button
-						type="button"
-						onclick={() => {
-							composerValue = s;
-							submitComposer();
-						}}
-						class="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+				<!-- Composer -->
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						submitComposer();
+					}}
+					class="w-full"
+				>
+					<div
+						class="flex items-end gap-2 rounded-2xl border border-border bg-muted/20 px-3 py-2 shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-1 focus-within:ring-ring/40"
 					>
-						{s}
-					</button>
-				{/each}
-			</div>
-		</section>
-
-		<!-- ── Recent agent sessions ────────────────────────────────────────── -->
-		<section class="flex min-w-0 flex-col gap-4">
-			<div class="flex min-w-0 items-center justify-between gap-2">
-				<h2 class="text-sm font-semibold">Recent sessions</h2>
-				<Button variant="ghost" size="sm" class="gap-1.5 text-xs" onclick={openNewAgent}>
-					<BotIcon class="size-3.5" />
-					New agent
-				</Button>
-			</div>
-
-			{#if agents.length === 0}
-				<Card.Root class="border-dashed">
-					<Card.Content class="flex flex-col items-center gap-3 py-10 text-center">
-						<div class="flex size-10 items-center justify-center rounded-full bg-muted">
-							<BotIcon class="size-5 text-muted-foreground" />
-						</div>
-						<div class="flex flex-col gap-1">
-							<p class="text-sm font-medium">No agent sessions yet</p>
-							<p class="text-xs text-muted-foreground">
-								Ask a question above to start your first session.
-							</p>
-						</div>
-					</Card.Content>
-				</Card.Root>
-			{:else}
-				<div class="flex flex-col divide-y divide-border rounded-xl border">
-					{#each agents.slice(0, 6) as agent (agent.id)}
-						<AgentStatusItem
-							chatId={agent.id}
-							name={agent.title || 'Agent session'}
-							description="{agent.messageCount} message{agent.messageCount === 1
-								? ''
-								: 's'} · {relativeTimestamp(agent.updatedAt)}"
-							sessionStatus={agent.status}
-							href="/chat?agent={encodeURIComponent(agent.id)}"
-							size="sm"
+						<Textarea
+							bind:ref={textareaEl}
+							bind:value={composerValue}
+							oninput={resizeComposer}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' && !e.shiftKey) {
+									e.preventDefault();
+									submitComposer();
+								}
+							}}
+							placeholder="Ask anything about your media library…"
+							rows={1}
+							class="max-h-48 flex-1 resize-none border-0 bg-transparent! shadow-none focus-visible:ring-0"
 						/>
+						<Button
+							type="submit"
+							size="icon"
+							disabled={!composerValue.trim()}
+							class="mb-0.5 size-8 shrink-0 rounded-xl bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40"
+							aria-label="Send"
+						>
+							<ArrowUpIcon class="size-4" />
+						</Button>
+					</div>
+				</form>
+
+				<!-- Suggestion chips -->
+				<div class="flex flex-wrap justify-center gap-2">
+					{#each suggestions as s (s)}
+						<button
+							type="button"
+							onclick={() => {
+								composerValue = s;
+								submitComposer();
+							}}
+							class="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+						>
+							{s}
+						</button>
 					{/each}
 				</div>
-				{#if agents.length > 6}
-					<Button variant="ghost" size="sm" class="self-start text-xs" onclick={openNewAgent}>
-						View all {agents.length} sessions →
+			</section>
+
+			<!-- ── Recent agent sessions ────────────────────────────────────────── -->
+			<section class="flex w-full min-w-0 flex-col gap-4">
+				<div class="flex min-w-0 items-center justify-between gap-2">
+					<h2 class="text-sm font-semibold">Recent sessions</h2>
+					<Button variant="ghost" size="sm" class="gap-1.5 text-xs" onclick={openNewAgent}>
+						<BotIcon class="size-3.5" />
+						New agent
 					</Button>
+				</div>
+
+				{#if agents.length === 0}
+					<Card.Root class="border-dashed">
+						<Card.Content class="flex flex-col items-center gap-3 py-10 text-center">
+							<div class="flex size-10 items-center justify-center rounded-full bg-muted">
+								<BotIcon class="size-5 text-muted-foreground" />
+							</div>
+							<div class="flex flex-col gap-1">
+								<p class="text-sm font-medium">No agent sessions yet</p>
+								<p class="text-xs text-muted-foreground">
+									Ask a question above to start your first session.
+								</p>
+							</div>
+						</Card.Content>
+					</Card.Root>
+				{:else}
+					<div class="flex flex-col divide-y divide-border rounded-xl border">
+						{#each agents.slice(0, 6) as agent (agent.id)}
+							<AgentStatusItem
+								chatId={agent.id}
+								name={agent.title || 'Agent session'}
+								description="{agent.messageCount} message{agent.messageCount === 1
+									? ''
+									: 's'} · {relativeTimestamp(agent.updatedAt)}"
+								sessionStatus={agent.status}
+								href="/chat?agent={encodeURIComponent(agent.id)}"
+								size="sm"
+							/>
+						{/each}
+					</div>
+					{#if agents.length > 6}
+						<Button variant="ghost" size="sm" class="self-start text-xs" onclick={openNewAgent}>
+							View all {agents.length} sessions →
+						</Button>
+					{/if}
 				{/if}
-			{/if}
-		</section>
+			</section>
+		</div>
 
 		<!-- ── Media library ────────────────────────────────────────────────── -->
-		<section class="flex min-w-0 flex-col gap-6">
+		<section class="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6">
 			<div class="flex min-w-0 items-center justify-between gap-2">
 				<h2 class="text-sm font-semibold tracking-wide text-muted-foreground uppercase">Library</h2>
 				<Button

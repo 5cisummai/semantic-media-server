@@ -2,7 +2,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { env } from '$env/dynamic/private';
 
-const DEFAULT_LOCAL_DATABASE_URL = 'postgresql://mediaserver:mediaserver@localhost:5432/mediaserver';
+const DEFAULT_LOCAL_DATABASE_URL =
+	'postgresql://mediaserver:mediaserver@localhost:5432/mediaserver';
 
 function getDatabaseUrl() {
 	const databaseUrl = env.DATABASE_URL?.trim();
@@ -26,7 +27,9 @@ function getDatabaseUrl() {
 		if (process.env.NODE_ENV !== 'production') {
 			parsedUrl.password = env.DB_PASSWORD?.trim();
 			if (!parsedUrl.password) {
-				throw new Error('DB_PASSWORD must be set in development when DATABASE_URL does not include a password');
+				throw new Error(
+					'DB_PASSWORD must be set in development when DATABASE_URL does not include a password'
+				);
 			}
 			return parsedUrl.toString();
 		}

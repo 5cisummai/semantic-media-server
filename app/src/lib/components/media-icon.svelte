@@ -1,27 +1,27 @@
 <script lang="ts">
-    import { Folder, FileVideo, FileMusic, FileImage, FileText, File } from '@lucide/svelte';
+	import { Folder, FileVideo, FileMusic, FileImage, FileText, File } from '@lucide/svelte';
 
-    type MediaType = 'video' | 'audio' | 'image' | 'document' | 'other';
+	type MediaType = 'video' | 'audio' | 'image' | 'document' | 'other';
 
-    interface Props {
-        entryType: 'file' | 'directory';
-        mediaType?: MediaType;
-        class?: string;
-    }
+	interface Props {
+		entryType: 'file' | 'directory';
+		mediaType?: MediaType;
+		class?: string;
+	}
 
-    let { entryType, mediaType, class: className = '' }: Props = $props();
+	let { entryType, mediaType, class: className = '' }: Props = $props();
 </script>
 
 {#if entryType === 'directory'}
-    <Folder class={className} />
+	<Folder class={className} />
 {:else if mediaType === 'video'}
-    <FileVideo class={className} />
+	<FileVideo class={className} />
 {:else if mediaType === 'audio'}
-    <FileMusic class={className} />
+	<FileMusic class={className} />
 {:else if mediaType === 'image'}
-    <FileImage class={className} />
+	<FileImage class={className} />
 {:else if mediaType === 'document'}
-    <FileText class={className} />
+	<FileText class={className} />
 {:else}
-    <File class={className} />
+	<File class={className} />
 {/if}

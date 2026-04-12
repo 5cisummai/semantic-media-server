@@ -160,10 +160,7 @@ export async function markRunRunning(runId: string): Promise<AgentRunRecord | nu
 	}
 }
 
-export function appendRunToolStreamEvent(
-	runId: string,
-	entry: BackgroundToolStreamEntry
-): void {
+export function appendRunToolStreamEvent(runId: string, entry: BackgroundToolStreamEntry): void {
 	const log = toolStreamLogs.get(runId);
 	if (log) log.push(entry);
 }
@@ -178,7 +175,9 @@ export async function markRunAwaitingConfirmation(
 			data: {
 				status: 'AWAITING_CONFIRMATION',
 				error: null,
-				metadata: { pendingToolConfirmation: pending } as unknown as import('@prisma/client').Prisma.InputJsonValue
+				metadata: {
+					pendingToolConfirmation: pending
+				} as unknown as import('@prisma/client').Prisma.InputJsonValue
 			}
 		});
 		const record = toRecord(row);
@@ -231,12 +230,12 @@ export async function markRunFailed(
 }
 
 export async function appendRunStep(runId: string, step: RunStep): Promise<void> {
-	// Append to the JSON array in the DB
 	const current = await db.agentRun.findUnique({
 		where: { id: runId },
 		select: { steps: true }
 	});
-	const steps = ((current?.steps ?? []) as unknown) as RunStep[];
+	if (!current) return; // Run was deleted (e.g. cascade from chat deletion) — skip silently
+	const steps = (current.steps ?? []) as unknown as RunStep[];
 	steps.push(step);
 	await db.agentRun.update({
 		where: { id: runId },
@@ -271,10 +270,7 @@ export async function supersedeOtherRunsForChat(
 // Queries
 // ---------------------------------------------------------------------------
 
-export async function getAgentRun(
-	runId: string,
-	userId?: string
-): Promise<AgentRunRecord | null> {
+export async function getAgentRun(runId: string, userId?: string): Promise<AgentRunRecord | null> {
 	const where: Record<string, unknown> = { id: runId };
 	if (userId) where.userId = userId;
 

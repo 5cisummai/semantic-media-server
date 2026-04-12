@@ -1,7 +1,9 @@
+import { randomInt } from 'node:crypto';
 import { db } from '$lib/server/db';
 import type { Prisma } from '@prisma/client';
 import type { ConversationMessage } from '$lib/server/agent/types';
 import { getActiveRunForChat } from '$lib/server/agent-runs';
+import { summarizePromptAsChatTitle } from '$lib/server/services/llm';
 import { dedupeChatsById } from '$lib/utils.js';
 
 const UNTITLED_CHAT = 'New chat';
@@ -67,10 +69,108 @@ function sanitizeTitle(title: string): string {
 	return title.replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE_LENGTH);
 }
 
-export function titleFromQuestion(question: string): string {
-	const normalized = sanitizeTitle(question);
-	if (!normalized) return UNTITLED_CHAT;
-	return normalized;
+/** Short word lists for human-readable session names (not derived from the first prompt). */
+const CHAT_TITLE_ADJECTIVES = [
+	'Quiet',
+	'Calm',
+	'Bright',
+	'Gentle',
+	'Swift',
+	'Clear',
+	'Soft',
+	'Bold',
+	'Cool',
+	'Warm',
+	'Deep',
+	'Light',
+	'Fresh',
+	'Keen',
+	'Fine',
+	'Grand',
+	'Noble',
+	'Quick',
+	'Steady',
+	'Wild',
+	'Azure',
+	'Cedar',
+	'Crimson',
+	'Golden',
+	'Jade',
+	'Silver',
+	'Velvet',
+	'Winter',
+	'Summer',
+	'Morning',
+	'Evening'
+] as const;
+
+const CHAT_TITLE_NOUNS = [
+	'Harbor',
+	'Meadow',
+	'Canvas',
+	'Beacon',
+	'Compass',
+	'Anchor',
+	'Current',
+	'Drift',
+	'Fjord',
+	'Glacier',
+	'Horizon',
+	'Island',
+	'Lagoon',
+	'Mirror',
+	'Orchard',
+	'Pinnacle',
+	'Quartz',
+	'Ridge',
+	'Summit',
+	'Tide',
+	'Voyage',
+	'Willow',
+	'Zephyr',
+	'Atlas',
+	'Birch',
+	'Cove',
+	'Dune',
+	'Eagle',
+	'Falcon',
+	'Garden'
+] as const;
+
+/**
+ * Random two-word title for new agent sessions (not the user's first message).
+ */
+export function generateChatTitle(): string {
+	const adj = CHAT_TITLE_ADJECTIVES[randomInt(CHAT_TITLE_ADJECTIVES.length)];
+	const noun = CHAT_TITLE_NOUNS[randomInt(CHAT_TITLE_NOUNS.length)];
+	return sanitizeTitle(`${adj} ${noun}`);
+}
+
+/**
+ * Title for a newly created chat: explicit user title if provided, otherwise {@link generateChatTitle}.
+ */
+export function titleForNewChat(explicitTitle?: string | null): string {
+	const normalized = sanitizeTitle(explicitTitle ?? '');
+	if (normalized) return normalized;
+	return generateChatTitle();
+}
+
+function normalizeLlmChatTitle(raw: string): string {
+	const firstLine = raw.split('\n')[0] ?? raw;
+	let t = sanitizeTitle(firstLine.replace(/\s+/g, ' '));
+	t = t.replace(/^["'«»\u201c\u201d]+|["'«»\u201c\u201d]+$/g, '').trim();
+	return sanitizeTitle(t);
+}
+
+async function titleFromFirstUserMessage(firstMessage: string): Promise<string> {
+	try {
+		const raw = await summarizePromptAsChatTitle(firstMessage);
+		const t = normalizeLlmChatTitle(raw);
+		if (t) return t;
+	} catch {
+		// fall back below
+	}
+	return generateChatTitle();
 }
 
 function toStoredMessage(row: ChatMessageRow): StoredChatMessage {
@@ -299,7 +399,7 @@ export async function deleteMessagesFromMessageId(
 export async function resolveOrCreateChat(
 	userId: string,
 	chatId: string | undefined,
-	question: string
+	firstMessage: string
 ): Promise<ChatSummary> {
 	if (chatId) {
 		const row = await ensureOwnedChatSession(userId, chatId);
@@ -322,5 +422,6 @@ export async function resolveOrCreateChat(
 		};
 	}
 
-	return createChatForUser(userId, titleFromQuestion(question));
+	const title = await titleFromFirstUserMessage(firstMessage);
+	return createChatForUser(userId, title);
 }

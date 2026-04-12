@@ -64,7 +64,11 @@
 		<Breadcrumb.Root class="min-w-0 flex-1">
 			<Breadcrumb.List>
 				<Breadcrumb.Item>
-					<Button variant="link" class="h-auto p-0 text-sm font-medium text-muted-foreground" onclick={() => navigateTo('')}>
+					<Button
+						variant="link"
+						class="h-auto p-0 text-sm font-medium text-muted-foreground"
+						onclick={() => navigateTo('')}
+					>
 						Root
 					</Button>
 				</Breadcrumb.Item>
@@ -74,7 +78,11 @@
 						{#if index === pathSegments.length - 1}
 							<Breadcrumb.Page class="text-sm font-medium">{segment}</Breadcrumb.Page>
 						{:else}
-							<Button variant="link" class="h-auto p-0 text-sm font-medium text-muted-foreground" onclick={() => navigateTo(pathSegments.slice(0, index + 1).join('/'))}>
+							<Button
+								variant="link"
+								class="h-auto p-0 text-sm font-medium text-muted-foreground"
+								onclick={() => navigateTo(pathSegments.slice(0, index + 1).join('/'))}
+							>
 								{segment}
 							</Button>
 						{/if}

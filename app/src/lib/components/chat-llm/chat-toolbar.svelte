@@ -77,7 +77,9 @@
 					<Select.Root
 						type="single"
 						value={String(maxHistoryMessages)}
-						onValueChange={(v: string) => { if (v) maxHistoryMessages = Number(v); }}
+						onValueChange={(v: string) => {
+							if (v) maxHistoryMessages = Number(v);
+						}}
 						{disabled}
 					>
 						<Select.Trigger class="w-full" aria-label="History depth">

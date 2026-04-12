@@ -9,7 +9,10 @@ export interface MutationUserContext {
 	isAdmin: boolean;
 }
 
-async function collectNestedRelativePaths(fullPath: string, relativePath: string): Promise<string[]> {
+async function collectNestedRelativePaths(
+	fullPath: string,
+	relativePath: string
+): Promise<string[]> {
 	const stat = await fs.stat(fullPath);
 	if (stat.isFile()) return [relativePath];
 	if (!stat.isDirectory()) return [];
@@ -57,7 +60,10 @@ async function canDeletePath(
 	return null;
 }
 
-export async function deleteMediaPath(relativePath: string, ctx: MutationUserContext): Promise<string> {
+export async function deleteMediaPath(
+	relativePath: string,
+	ctx: MutationUserContext
+): Promise<string> {
 	const resolved = resolveSafePath(relativePath);
 	if (!resolved) return `Error: invalid or out-of-scope path "${relativePath}".`;
 
@@ -141,7 +147,9 @@ export async function moveMediaPath(
 		await fs.access(dstRes.fullPath);
 		return `Error: destination already exists "${destination}".`;
 	} catch (err) {
-		if (!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT')) {
+		if (
+			!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT')
+		) {
 			throw err;
 		}
 	}
@@ -155,10 +163,7 @@ export async function moveMediaPath(
 
 	const uploads = await db.uploadedFile.findMany({
 		where: {
-			OR: [
-				{ relativePath: source },
-				{ relativePath: { startsWith: `${source}/` } }
-			]
+			OR: [{ relativePath: source }, { relativePath: { startsWith: `${source}/` } }]
 		},
 		select: { relativePath: true }
 	});
@@ -299,7 +304,9 @@ export async function copyMediaPath(
 		await fs.access(dstRes.fullPath);
 		return `Error: destination already exists "${destination}".`;
 	} catch (err) {
-		if (!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT')) {
+		if (
+			!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT')
+		) {
 			throw err;
 		}
 	}
