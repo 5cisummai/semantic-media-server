@@ -30,7 +30,7 @@ docker compose up -d
 $AppDir = Join-Path $Root 'app'
 $EmbedDir = Join-Path $Root 'embedding-host'
 
-$PyExe = Join-Path $EmbedDir '.venv\Scripts\python.exe'
+$PyExe = Join-Path $Root '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $PyExe)) {
   $pyCmd = Get-Command python -ErrorAction SilentlyContinue
   $PyExe = if ($pyCmd) { $pyCmd.Source } else { 'python' }

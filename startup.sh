@@ -43,9 +43,9 @@ trap cleanup EXIT INT TERM
 
 (
   cd "$ROOT/embedding-host"
-  if [[ -f .venv/bin/activate ]]; then
+  if [[ -f "$ROOT/.venv/bin/activate" ]]; then
     # shellcheck source=/dev/null
-    source .venv/bin/activate
+    source "$ROOT/.venv/bin/activate"
   fi
   uvicorn app:app --host 127.0.0.1 --port 8000
 ) &
