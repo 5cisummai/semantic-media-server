@@ -1,29 +1,33 @@
 <script lang="ts">
 	import './layout.css';
-	import favicon from '$lib/assets/favicon.svg';
+	import vectraspaceLogoLight from '$lib/assets/logos/vectraspace-icon-light.png';
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
 	import { Upload, RefreshCw, CheckCircle, AlertCircle, X } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { uploadManager } from '$lib/upload-manager';
-	import { ModeWatcher } from "mode-watcher";
+	import { ModeWatcher } from 'mode-watcher';
+	import { Toaster } from '$lib/components/ui/sonner/index.js';
 
 	let { children } = $props();
 
 	function openUploads() {
 		const destination = $uploadManager.activeDestination;
-		const uploadPath = resolve('/upload');
+		const uploadPath = '/upload';
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
 		goto(destination ? `${uploadPath}?dest=${encodeURIComponent(destination)}` : uploadPath);
 	}
 </script>
 
-<svelte:head><link rel="icon" href={favicon} /></svelte:head>
+<svelte:head><link rel="icon" href={vectraspaceLogoLight} /></svelte:head>
 <ModeWatcher />
+<Toaster />
 {@render children()}
 
 {#if $uploadManager.items.length > 0 && ($uploadManager.batchPhase !== 'idle' || $uploadManager.batchMessage)}
-	<div class="pointer-events-none fixed bottom-4 right-4 z-50 w-[min(24rem,calc(100vw-2rem))]">
-		<div class="pointer-events-auto rounded-xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur">
+	<div class="pointer-events-none fixed right-4 bottom-4 z-50 w-[min(24rem,calc(100vw-2rem))]">
+		<div
+			class="pointer-events-auto rounded-xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur"
+		>
 			<div class="flex items-start gap-3">
 				{#if $uploadManager.batchPhase === 'uploading'}
 					<Upload class="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -49,7 +53,8 @@
 					</p>
 					<p class="mt-1 text-sm text-muted-foreground">
 						{#if $uploadManager.batchPhase === 'uploading'}
-							{$uploadManager.items.filter((item) => item.status === 'done').length} of {$uploadManager.items.length} complete
+							{$uploadManager.items.filter((item) => item.status === 'done').length} of {$uploadManager
+								.items.length} complete
 						{:else if $uploadManager.batchPhase === 'indexing'}
 							Uploads are done. Semantic indexing is running now.
 						{:else}
@@ -58,9 +63,7 @@
 					</p>
 
 					<div class="mt-3 flex gap-2">
-						<Button size="sm" variant="outline" onclick={openUploads}>
-							Open uploads
-						</Button>
+						<Button size="sm" variant="outline" onclick={openUploads}>Open uploads</Button>
 						{#if $uploadManager.batchPhase === 'complete' || $uploadManager.batchPhase === 'error'}
 							<Button size="sm" variant="ghost" onclick={uploadManager.dismissBatchMessage}>
 								Dismiss

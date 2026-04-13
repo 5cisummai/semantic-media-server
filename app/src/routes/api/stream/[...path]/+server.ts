@@ -1,10 +1,12 @@
 import { error } from '@sveltejs/kit';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
-import { resolveSafePath, getMediaInfo } from '$lib/server/storage';
+import { requireAuth } from '$lib/server/api';
+import { resolveSafePath, getMediaInfo } from '$lib/server/services/storage';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ params, request }) => {
+export const GET: RequestHandler = async ({ params, request, locals }) => {
+	await requireAuth(locals);
 	const resolved = resolveSafePath(params.path ?? '');
 	if (!resolved) throw error(400, 'Invalid path');
 
@@ -41,8 +43,8 @@ export const GET: RequestHandler = async ({ params, request }) => {
 				'Content-Range': `bytes ${start}-${end}/${fileSize}`,
 				'Accept-Ranges': 'bytes',
 				'Content-Length': String(chunkSize),
-				'Cache-Control': 'no-store',
-			},
+				'Cache-Control': 'no-store'
+			}
 		});
 	}
 
@@ -54,7 +56,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
 			'Content-Type': mimeType,
 			'Content-Length': String(fileSize),
 			'Accept-Ranges': 'bytes',
-			'Cache-Control': 'no-store',
-		},
+			'Cache-Control': 'no-store'
+		}
 	});
 };

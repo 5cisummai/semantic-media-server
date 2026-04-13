@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import fs from 'node:fs/promises';
-import path from 'node:path';
-import { isPathInsideRoot, resolveSafePath } from '$lib/server/storage';
+import * as path from '$lib/server/paths';
+import { isPathInsideRoot, resolveSafePath } from '$lib/server/services/storage';
 import { db } from '$lib/server/db';
 import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
@@ -27,10 +27,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!resolved) throw error(400, 'Invalid destination path');
 
 	// Sanitize filename — strip path separators, null bytes
-	const safeName = path
-		.basename(file.name)
-		.replace(/[/\\]/g, '')
-		.replace(/\0/g, '');
+	const safeName = path.basename(file.name).replace(/[/\\]/g, '').replace(/\0/g, '');
 
 	if (!safeName) throw error(400, 'Invalid filename');
 
@@ -48,7 +45,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const arrayBuffer = await file.arrayBuffer();
 	await fs.writeFile(destPath, Buffer.from(arrayBuffer));
 
-	const relativePath = path.join(destination, safeName).split(path.sep).join('/');
+	const relativePath = path.join(destination, safeName);
 
 	// Record ownership (upsert in case the file is overwritten)
 	await db.uploadedFile.upsert({

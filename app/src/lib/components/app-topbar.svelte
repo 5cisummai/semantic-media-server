@@ -18,9 +18,9 @@
 </script>
 
 <header
-	class={cn('sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur', className)}
+	class={cn('sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur', className)}
 >
-	<div class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
+	<div class="mx-auto flex items-center gap-3 px-4 py-3">
 		{#if left}
 			{@render left()}
 		{/if}

@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { Button } from "$lib/components/ui/button/index.js";
-	import * as Card from "$lib/components/ui/card/index.js";
-	import * as Field from "$lib/components/ui/field/index.js";
-	import { Input } from "$lib/components/ui/input/index.js";
-	import type { ComponentProps } from "svelte";
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import * as Field from '$lib/components/ui/field/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import type { ComponentProps } from 'svelte';
 	import { resolve } from '$app/paths';
 
 	let { ...restProps }: ComponentProps<typeof Card.Root> = $props();
@@ -16,6 +16,13 @@
 	let errorMsg = $state('');
 	let successMsg = $state('');
 	let loading = $state(false);
+
+	function clearLegacyAuthStorage() {
+		if (typeof localStorage === 'undefined') return;
+		localStorage.removeItem('accessToken');
+		localStorage.removeItem('username');
+		localStorage.removeItem('role');
+	}
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
@@ -36,7 +43,11 @@
 			const res = await fetch('/api/auth/signup', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username: username.trim().toLowerCase(), displayName: displayName.trim(), password: password.trim() })
+				body: JSON.stringify({
+					username: username.trim().toLowerCase(),
+					displayName: displayName.trim(),
+					password: password.trim()
+				})
 			});
 			const data = await res.json();
 			if (!res.ok) {
@@ -44,15 +55,8 @@
 				return;
 			}
 			if (data.approved) {
-				// First user — auto-approved admin
-				if (data.accessToken) {
-					localStorage.setItem('accessToken', data.accessToken);
-					localStorage.setItem('username', data.username);
-					localStorage.setItem('role', data.role);
-					goto(resolve('/'));
-				} else {
-					goto(resolve('/login'));
-				}
+				clearLegacyAuthStorage();
+				goto(resolve('/'));
 			} else {
 				successMsg = 'Account created! Waiting for admin approval.';
 			}
@@ -82,19 +86,37 @@
 				</Field.Field>
 				<Field.Field>
 					<Field.Label for="username">Username</Field.Label>
-					<Input id="username" type="text" placeholder="Enter your username" bind:value={username} required />
+					<Input
+						id="username"
+						type="text"
+						placeholder="Enter your username"
+						bind:value={username}
+						required
+					/>
 					<Field.Description>
 						Your username will be used to login to your media server.
 					</Field.Description>
 				</Field.Field>
 				<Field.Field>
 					<Field.Label for="password">Password</Field.Label>
-					<Input id="password" type="password" bind:value={password} required />
+					<Input
+						id="password"
+						type="password"
+						autocomplete="new-password"
+						bind:value={password}
+						required
+					/>
 					<Field.Description>Must be at least 8 characters long.</Field.Description>
 				</Field.Field>
 				<Field.Field>
 					<Field.Label for="confirm-password">Confirm Password</Field.Label>
-					<Input id="confirm-password" type="password" bind:value={confirmPassword} required />
+					<Input
+						id="confirm-password"
+						type="password"
+						autocomplete="new-password"
+						bind:value={confirmPassword}
+						required
+					/>
 				</Field.Field>
 				<Field.Group>
 					<Field.Field>

@@ -1,552 +1,581 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import {
-		ArrowLeft,
-		HardDrive,
-		AlertCircle,
-		CheckCircle,
-		RefreshCw,
-		Users,
-		Check,
-		X,
-		Info
-	} from '@lucide/svelte';
+	import { browser } from '$app/environment';
+	import { invalidateAll } from '$app/navigation';
+	import * as Tabs from '$lib/components/ui/tabs/index.js';
+	import * as Table from '$lib/components/ui/table/index.js';
 	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
-	import { Separator } from '$lib/components/ui/separator';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Progress } from '$lib/components/ui/progress';
-	import { Skeleton } from '$lib/components/ui/skeleton';
-	import * as Tabs from '$lib/components/ui/tabs';
-	import AppTopbar from '$lib/components/app-topbar.svelte';
-	import UserRosterTable from './user-roster-table.svelte';
-	import type { DriveInfo } from '../../api/storage/+server';
-	import { resolve } from '$app/paths';
+	import { Card } from '$lib/components/ui/card';
+	import { Checkbox } from '$lib/components/ui/checkbox';
+	import * as Progress from '$lib/components/ui/progress/index.js';
+	import { apiFetch } from '$lib/api-fetch';
+	import * as Select from '$lib/components/ui/select/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import { toast } from 'svelte-sonner';
+	import FolderIcon from '@lucide/svelte/icons/folder';
+	import UsersIcon from '@lucide/svelte/icons/users';
+	import InfoIcon from '@lucide/svelte/icons/info';
+	import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
+	import AlertCircleIcon from '@lucide/svelte/icons/alert-circle';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import XIcon from '@lucide/svelte/icons/x';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import FolderInputIcon from '@lucide/svelte/icons/folder-input';
+	import SparklesIcon from '@lucide/svelte/icons/sparkles';
+	import {
+		AUTO_APPROVE_SETTINGS,
+		isAutoApproveSettingEnabled,
+		setAutoApproveSettingEnabled,
+		type AutoApproveSettingId
+	} from '$lib/agent-auto-approve';
+	import type { PageData } from './$types';
 
-	let activeTab = $state<'storage' | 'users' | 'info'>('storage');
-	let drives = $state<DriveInfo[]>([]);
-	let loading = $state(true);
-	let error = $state<string | null>(null);
+	let { data }: { data: PageData } = $props();
 
-	// Admin state
-	const isAdmin = $derived(
-		typeof localStorage !== 'undefined' && localStorage.getItem('role') === 'ADMIN'
+	function formatBytes(bytes: number): string {
+		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+		let unitIndex = 0;
+		let size = bytes;
+		while (size >= 1024 && unitIndex < units.length - 1) {
+			size /= 1024;
+			unitIndex++;
+		}
+		return `${size.toFixed(1)} ${units[unitIndex]}`;
+	}
+
+	const drives = $derived(data.drives);
+	const users = $derived(data.users);
+	const pendingUsers = $derived(data.pendingUsers);
+	const isAdmin = $derived(data.isAdmin);
+	const currentUserId = $derived(data.currentUserId);
+	const adminAccountCount = $derived(users.filter((u) => u.role === 'ADMIN').length);
+
+	let deactivateTargetId = $state<string | null>(null);
+	let deactivateDialogOpen = $state(false);
+	const deactivateTarget = $derived(
+		deactivateTargetId ? users.find((u) => u.id === deactivateTargetId) : undefined
 	);
-	type PendingUser = { id: string; username: string; displayName: string; createdAt: string };
-	type UserSummary = {
-		id: string;
-		username: string;
-		displayName: string;
-		role: 'ADMIN' | 'USER';
-		approved: boolean;
-		createdAt: string;
-	};
-	let pendingUsers = $state<PendingUser[]>([]);
-	let users = $state<UserSummary[]>([]);
-	let pendingLoading = $state(false);
-	let usersLoading = $state(false);
-	let pendingError = $state<string | null>(null);
-	let usersError = $state<string | null>(null);
 
-	function formatSize(bytes: number) {
-		if (bytes < 1024) return `${bytes} B`;
-		if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-		if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-		return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+	function openDeactivateDialog(userId: string) {
+		deactivateTargetId = userId;
+		deactivateDialogOpen = true;
 	}
+	let reindexing = $state(false);
+	let reindexStatus = $state<'idle' | 'success' | 'error'>('idle');
 
-	function getUsageColor(percent: number) {
-		if (percent >= 90) return 'text-destructive';
-		if (percent >= 75) return 'text-amber-500';
-		return 'text-green-500';
-	}
+	let ingestingRoot = $state<number | null>(null);
+	let ingestStatus = $state<'idle' | 'success' | 'error'>('idle');
+	let ingestMessage = $state<string | null>(null);
 
-	async function loadDrives() {
-		loading = true;
-		error = null;
-		try {
-			const token = localStorage.getItem('accessToken') ?? '';
-			const res = await fetch('/api/storage', {
-				headers: { Authorization: `Bearer ${token}` }
-			});
-			if (!res.ok) throw new Error(await res.text());
-			drives = await res.json();
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to load storage info';
-		} finally {
-			loading = false;
-		}
-	}
+	let settingsTab = $state('storage');
 
-	async function loadPending() {
-		pendingLoading = true;
-		pendingError = null;
-		try {
-			const token = localStorage.getItem('accessToken') ?? '';
-			const res = await fetch('/api/auth/pending', {
-				headers: { Authorization: `Bearer ${token}` }
-			});
-			if (!res.ok) throw new Error(await res.text());
-			pendingUsers = await res.json();
-		} catch (e) {
-			pendingError = e instanceof Error ? e.message : 'Failed to load pending users';
-		} finally {
-			pendingLoading = false;
-		}
-	}
+	let agentAutoApprove = $state<Record<AutoApproveSettingId, boolean>>({
+		delete_file: false,
+		move: false,
+		copy_file: false,
+		mkdir: false
+	});
 
-	async function loadUsers() {
-		usersLoading = true;
-		usersError = null;
-		try {
-			const token = localStorage.getItem('accessToken') ?? '';
-			const res = await fetch('/api/auth/users', {
-				headers: { Authorization: `Bearer ${token}` }
-			});
-			if (!res.ok) throw new Error(await res.text());
-			users = await res.json();
-		} catch (e) {
-			usersError = e instanceof Error ? e.message : 'Failed to load user list';
-		} finally {
-			usersLoading = false;
-		}
+	function syncAgentAutoApproveFromStorage() {
+		agentAutoApprove = {
+			delete_file: isAutoApproveSettingEnabled('delete_file'),
+			move: isAutoApproveSettingEnabled('move'),
+			copy_file: isAutoApproveSettingEnabled('copy_file'),
+			mkdir: isAutoApproveSettingEnabled('mkdir')
+		};
 	}
 
 	async function approveUser(userId: string) {
-		const token = localStorage.getItem('accessToken') ?? '';
-		const res = await fetch('/api/auth/approve', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-			body: JSON.stringify({ userId })
-		});
-		if (res.ok) pendingUsers = pendingUsers.filter((u) => u.id !== userId);
-	}
-
-	async function rejectUser(userId: string) {
-		const token = localStorage.getItem('accessToken') ?? '';
-		const res = await fetch('/api/auth/approve', {
-			method: 'DELETE',
-			headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-			body: JSON.stringify({ userId })
-		});
-		if (res.ok) pendingUsers = pendingUsers.filter((u) => u.id !== userId);
-	}
-
-	let reindexLoading = $state(false);
-	let reindexMessage = $state<string | null>(null);
-
-	async function runReindex() {
-		reindexLoading = true;
-		reindexMessage = null;
 		try {
-			const token = localStorage.getItem('accessToken') ?? '';
-			const res = await fetch('/api/search/reindex', {
+			const res = await apiFetch('/api/auth/approve', {
 				method: 'POST',
-				headers: { Authorization: `Bearer ${token}` }
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ userId })
 			});
-			if (!res.ok) {
-				throw new Error(await res.text());
+			if (res.ok) {
+				await invalidateAll();
 			}
-			const data = await res.json();
-			reindexMessage = data?.summary ? 'Reindex completed successfully.' : 'Reindex request succeeded.';
 		} catch (e) {
-			reindexMessage = e instanceof Error ? e.message : 'Failed to trigger reindex';
-		} finally {
-			reindexLoading = false;
+			console.error('Failed to approve user', e);
 		}
 	}
 
-	onMount(() => {
-		loadDrives();
-		if (localStorage.getItem('role') === 'ADMIN') {
-			loadPending();
-			loadUsers();
+	async function rejectUser(userId: string) {
+		try {
+			const res = await apiFetch('/api/auth/approve', {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ userId })
+			});
+			if (res.ok) {
+				await invalidateAll();
+			}
+		} catch (e) {
+			console.error('Failed to reject user', e);
+		}
+	}
+
+	async function updateAppRole(userId: string, role: 'ADMIN' | 'USER') {
+		try {
+			const res = await apiFetch(`/api/auth/users/${userId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ role })
+			});
+			if (res.ok) {
+				toast.success('Server role updated');
+				await invalidateAll();
+			} else {
+				const err = (await res.json().catch(() => null)) as { error?: string } | null;
+				toast.error(err?.error ?? 'Could not update role');
+			}
+		} catch (e) {
+			console.error('Failed to update user role', e);
+			toast.error('Could not update role');
+		}
+	}
+
+	async function deactivateAccount() {
+		if (!deactivateTargetId) return;
+		const id = deactivateTargetId;
+		try {
+			const res = await apiFetch(`/api/auth/users/${id}`, { method: 'DELETE' });
+			deactivateDialogOpen = false;
+			deactivateTargetId = null;
+			if (res.ok) {
+				toast.success('Account deactivated');
+				await invalidateAll();
+			} else {
+				const err = (await res.json().catch(() => null)) as { error?: string } | null;
+				toast.error(err?.error ?? 'Could not deactivate account');
+			}
+		} catch (e) {
+			console.error('Failed to deactivate user', e);
+			toast.error('Could not deactivate account');
+		}
+	}
+
+	function canDemoteServerAdmin(user: { id: string; role: string }): boolean {
+		if (user.role !== 'ADMIN') return true;
+		return adminAccountCount > 1;
+	}
+
+	function canDeactivate(user: { id: string; role: string }): boolean {
+		if (user.id === currentUserId) return false;
+		if (user.role === 'ADMIN' && adminAccountCount <= 1) return false;
+		return true;
+	}
+
+	async function reindex() {
+		reindexing = true;
+		reindexStatus = 'idle';
+		try {
+			const res = await apiFetch('/api/search/reindex', { method: 'POST' });
+			if (res.ok) {
+				const data = await res.json();
+				reindexStatus = 'success';
+				console.log('Reindex completed:', data);
+			} else {
+				reindexStatus = 'error';
+			}
+		} catch (e) {
+			console.error('Failed to reindex', e);
+			reindexStatus = 'error';
+		} finally {
+			reindexing = false;
+		}
+	}
+
+	async function ingestDirectory(rootIndex: number) {
+		ingestingRoot = rootIndex;
+		ingestStatus = 'idle';
+		ingestMessage = null;
+		try {
+			const res = await apiFetch('/api/ingest/directory', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ rootIndex })
+			});
+			const data = (await res.json().catch(() => null)) as {
+				summary?: {
+					filesIndexed?: number;
+					chunksIndexed?: number;
+					filesSkipped?: number;
+					filesScanned?: number;
+				};
+				message?: string;
+			} | null;
+			if (res.ok && data?.summary) {
+				ingestStatus = 'success';
+				const s = data.summary;
+				ingestMessage = `Indexed ${s.filesIndexed ?? 0} files (${s.chunksIndexed ?? 0} chunks, ${s.filesSkipped ?? 0} skipped, ${s.filesScanned ?? 0} scanned).`;
+			} else {
+				ingestStatus = 'error';
+				ingestMessage =
+					data?.message ?? (res.status === 403 ? 'Forbidden (admin only)' : 'Ingest failed');
+			}
+		} catch (e) {
+			console.error('Failed to ingest', e);
+			ingestStatus = 'error';
+			ingestMessage = 'Network error';
+		} finally {
+			ingestingRoot = null;
+		}
+	}
+
+	if (browser) {
+		syncAgentAutoApproveFromStorage();
+	}
+
+	$effect(() => {
+		if (!browser) return;
+		if (settingsTab === 'assistant') {
+			syncAgentAutoApproveFromStorage();
 		}
 	});
 </script>
 
-<div class="min-h-screen bg-background text-foreground">
-	<AppTopbar>
-		{#snippet left()}
-			<Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => goto(resolve('/'))}>
-				<ArrowLeft class="h-4 w-4" />
-			</Button>
-			<Separator orientation="vertical" class="h-5" />
-		{/snippet}
+<div class="min-h-full bg-background p-4 text-foreground sm:p-6">
+	<main class="mx-auto flex w-full max-w-360 flex-col gap-8">
+		<section class="flex flex-col gap-2">
+			<p class="text-xs font-medium tracking-[0.14em] text-muted-foreground uppercase">Settings</p>
+			<h1 class="text-2xl font-semibold">Settings</h1>
+			<p class="max-w-2xl text-sm text-muted-foreground">
+				Manage your account settings and preferences.
+			</p>
+		</section>
 
-		{#snippet center()}
-			<span class="text-lg font-semibold">Settings</span>
-		{/snippet}
-	</AppTopbar>
-
-	<main class="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8">
-		<Tabs.Root
-			value={activeTab}
-			onValueChange={(v) => (activeTab = v as 'storage' | 'users' | 'info')}
-		>
-			<Tabs.List class="grid w-full {isAdmin ? 'grid-cols-3' : 'grid-cols-2'}">
-				<Tabs.Trigger value="storage" class="flex items-center gap-2">
-					<HardDrive class="h-4 w-4" />
+		<Tabs.Root bind:value={settingsTab}>
+			<Tabs.List class="grid w-full max-w-2xl grid-cols-2 gap-1 sm:grid-cols-4">
+				<Tabs.Trigger value="storage" class="gap-2">
+					<FolderIcon class="size-4" />
 					Storage
 				</Tabs.Trigger>
-				{#if isAdmin}
-					<Tabs.Trigger value="users" class="relative flex items-center justify-center gap-2">
-						<Users class="h-4 w-4" />
-						Users
-						{#if pendingUsers.length > 0}
-							<Badge variant="destructive" class="absolute -top-2 -right-2 text-[10px]"
-								>{pendingUsers.length}</Badge
-							>
-						{/if}
-					</Tabs.Trigger>
-				{/if}
-				<Tabs.Trigger value="info" class="flex items-center gap-2">
-					<Info class="h-4 w-4" />
+				<Tabs.Trigger value="assistant" class="gap-2">
+					<SparklesIcon class="size-4" />
+					Assistant
+				</Tabs.Trigger>
+				<Tabs.Trigger value="users" class="gap-2">
+					<UsersIcon class="size-4" />
+					Users
+				</Tabs.Trigger>
+				<Tabs.Trigger value="info" class="gap-2">
+					<InfoIcon class="size-4" />
 					Info
 				</Tabs.Trigger>
 			</Tabs.List>
 
-			<Tabs.Content value="storage" class="space-y-6">
-				<!-- Error -->
-				{#if error}
-					<div
-						class="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-					>
-						<AlertCircle class="h-4 w-4 shrink-0" />
-						{error}
+			<Tabs.Content value="storage" class="space-y-4">
+				{#if drives.length === 0}
+					<p class="text-sm text-muted-foreground">No storage drives configured.</p>
+				{:else}
+					<div class="space-y-4">
+						{#each drives as drive}
+							<Card class="p-4">
+								<div class="mb-2 flex items-center justify-between">
+									<div class="flex items-center gap-2">
+										<HardDriveIcon class="size-5 text-muted-foreground" />
+										<span class="font-medium">{drive.name}</span>
+									</div>
+									{#if !drive.available}
+										<span class="flex items-center gap-1 text-sm text-destructive">
+											<AlertCircleIcon class="size-4" />
+											Unavailable
+										</span>
+									{/if}
+								</div>
+								<p class="mb-3 font-mono text-xs text-muted-foreground">{drive.path}</p>
+								{#if drive.available && drive.totalBytes}
+									<Progress.Root value={drive.usedPercent ?? 0} max={100} class="mb-2" />
+									<div class="flex justify-between text-xs text-muted-foreground">
+										<span>{formatBytes(drive.usedBytes ?? 0)} used</span>
+										<span>{formatBytes(drive.freeBytes ?? 0)} free</span>
+									</div>
+								{:else if !drive.available}
+									<p class="text-sm text-muted-foreground">Drive is not accessible.</p>
+								{/if}
+							</Card>
+						{/each}
 					</div>
 				{/if}
 
-				<!-- How to add drives info box -->
-				{#if isAdmin}
-					<Card.Root>
-						<Card.Header>
-							<Card.Title class="text-base">Adding or removing drives</Card.Title>
-							<Card.Description>
-								Storage pools are configured via the <code
-									class="rounded bg-muted px-1 py-0.5 font-mono text-xs">MEDIA_ROOTS</code
-								>
-								environment variable. Edit your
-								<code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">.env</code> file and restart
-								the server to apply changes.
-							</Card.Description>
-						</Card.Header>
-						<Card.Content>
-							<div class="rounded-lg bg-muted px-4 py-3 font-mono text-sm">
-								MEDIA_ROOTS=/mnt/drive1,/mnt/drive2,/mnt/drive3
-							</div>
-						</Card.Content>
-					</Card.Root>
-				{/if}
+				<Card class="bg-muted/50 p-4">
+					<h3 class="mb-2 text-sm font-medium">Adding More Drives</h3>
+					<p class="text-sm text-muted-foreground">
+						To add more storage drives, edit the <code class="rounded bg-muted px-1 text-xs"
+							>.env</code
+						>
+						file and add paths separated by commas to the
+						<code class="rounded bg-muted px-1 text-xs">MEDIA_ROOTS</code> variable:
+					</p>
+					<code class="mt-2 block rounded bg-muted p-2 text-xs"
+						>MEDIA_ROOTS=/path/to/drive1,/path/to/drive2</code
+					>
+				</Card>
 
-				<!-- Drive list -->
-				<div class="flex flex-col gap-3">
-<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<h2 class="text-sm font-medium tracking-wide text-muted-foreground uppercase">
-					Configured drives ({drives.length})
-				</h2>
-				<div class="flex flex-wrap items-center gap-2">
-					<Button variant="outline" size="sm" onclick={loadDrives} disabled={loading}>
-						<RefreshCw class="mr-2 h-3.5 w-3.5 {loading ? 'animate-spin' : ''}" />
-						Refresh
-					</Button>
+				<Card class="p-4">
+					<h3 class="mb-2 text-sm font-medium">Search &amp; AI chat indexing</h3>
+					<p class="mb-3 text-sm text-muted-foreground">
+						<strong class="font-medium text-foreground">Reindex</strong> refreshes the filename and
+						metadata vector index for search.
+						<strong class="font-medium text-foreground">Ingest</strong> reads text and PDFs and stores
+						chunks for the chat assistant (separate from reindex).
+					</p>
 					{#if isAdmin}
-						<Button variant="secondary" size="sm" onclick={runReindex} disabled={reindexLoading}>
-							<RefreshCw class="mr-2 h-3.5 w-3.5 {reindexLoading ? 'animate-spin' : ''}" />
-							Reindex
-						</Button>
-					{/if}
-				</div>
-			</div>
-			{#if reindexMessage}
-				<div class="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
-					{reindexMessage}
-				</div>
-			{/if}
+						<div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+							<Button onclick={reindex} disabled={reindexing || ingestingRoot !== null}>
+								<RefreshCwIcon class="size-4 {reindexing ? 'animate-spin' : ''}" />
+								{reindexing ? 'Reindexing...' : 'Reindex search'}
+							</Button>
+						</div>
+						{#if reindexStatus === 'success'}
+							<p class="mt-2 text-sm text-green-600">Reindex completed successfully.</p>
+						{:else if reindexStatus === 'error'}
+							<p class="mt-2 text-sm text-destructive">
+								Reindex failed. Try again or check server logs.
+							</p>
+						{/if}
 
-					{#if loading}
-						{#each [1, 2] as i (i)}
-							<Skeleton class="h-36 rounded-xl" />
-						{/each}
-					{:else if drives.length === 0}
-						<Card.Root>
-							<Card.Content class="flex flex-col items-center gap-3 py-12 text-muted-foreground">
-								<HardDrive class="h-10 w-10 opacity-30" />
-								<p class="text-sm">No drives configured</p>
-								<p class="text-xs">Set MEDIA_ROOTS in your .env file</p>
-							</Card.Content>
-						</Card.Root>
-					{:else}
-						{#each drives as drive (drive.index)}
-							<div class={drive.available ? '' : 'opacity-60'}>
-								<Card.Root>
-									<Card.Content class="px-6 py-4">
-										<div class="flex items-start gap-4">
-											<div
-												class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted"
-											>
-												<HardDrive
-													class="h-5 w-5 {drive.available
-														? 'text-primary'
-														: 'text-muted-foreground'}"
-												/>
-											</div>
-
-											<div class="flex min-w-0 flex-1 flex-col gap-3">
-												<!-- Header row -->
-												<div class="flex items-center justify-between gap-2">
-													<div class="min-w-0">
-														<div class="flex items-center gap-2">
-															<span class="truncate font-medium">{drive.name}</span>
-															<Badge variant="outline" class="font-mono text-[10px]">
-																drive {drive.index}
-															</Badge>
-														</div>
-														<p class="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-															{drive.path}
-														</p>
-													</div>
-													{#if drive.available}
-														<CheckCircle class="h-4 w-4 shrink-0 text-green-500" />
-													{:else}
-														<div class="flex items-center gap-1.5 text-destructive">
-															<AlertCircle class="h-4 w-4 shrink-0" />
-															<span class="text-xs">Unavailable</span>
-														</div>
-													{/if}
-												</div>
-
-												<!-- Usage bar -->
-												{#if drive.available && drive.totalBytes && drive.usedBytes !== undefined && drive.freeBytes !== undefined && drive.usedPercent !== undefined}
-													<div class="flex flex-col gap-1.5">
-														<Progress value={drive.usedPercent} class="h-2" />
-														<div
-															class="flex items-center justify-between text-xs text-muted-foreground"
-														>
-															<span>
-																<span class={getUsageColor(drive.usedPercent)}>
-																	{formatSize(drive.usedBytes)} used
-																</span>
-																of {formatSize(drive.totalBytes)}
-															</span>
-															<span>{formatSize(drive.freeBytes)} free</span>
-														</div>
-													</div>
-												{:else if !drive.available}
-													<p class="text-xs text-muted-foreground">
-														Could not read drive — check that the path exists and is accessible.
-													</p>
-												{/if}
-											</div>
-										</div>
-									</Card.Content>
-								</Card.Root>
+						<div class="mt-4 border-t border-border pt-4">
+							<p class="mb-2 text-sm font-medium">Ingest file contents</p>
+							<p class="mb-3 text-sm text-muted-foreground">
+								Full pass on one drive; large libraries can take a while.
+							</p>
+							<div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+								{#each drives as drive}
+									{#if drive.available}
+										<Button
+											variant="outline"
+											onclick={() => ingestDirectory(drive.index)}
+											disabled={reindexing || ingestingRoot !== null}
+										>
+											<FolderInputIcon
+												class="size-4 {ingestingRoot === drive.index ? 'animate-pulse' : ''}"
+											/>
+											{ingestingRoot === drive.index ? 'Ingesting…' : `Ingest ${drive.name}`}
+										</Button>
+									{/if}
+								{/each}
 							</div>
-						{/each}
+							{#if ingestStatus === 'success' && ingestMessage}
+								<p class="mt-2 text-sm text-green-600">{ingestMessage}</p>
+							{:else if ingestStatus === 'error' && ingestMessage}
+								<p class="mt-2 text-sm text-destructive">{ingestMessage}</p>
+							{/if}
+						</div>
+					{:else}
+						<p class="text-sm text-muted-foreground">
+							Only administrators can reindex or ingest content for search and chat.
+						</p>
 					{/if}
-				</div>
-
-				<!-- RAID info -->
-				<Card.Root>
-					<Card.Header>
-						<Card.Title class="text-base">RAID & redundancy</Card.Title>
-						<Card.Description>
-							This app treats each path in MEDIA_ROOTS as an independent drive. For redundancy,
-							configure RAID at the OS level and point MEDIA_ROOTS at the resulting mount point.
-						</Card.Description>
-					</Card.Header>
-					<Card.Content class="flex flex-col gap-2 text-sm text-muted-foreground">
-						<p>Recommended approaches:</p>
-						<ul class="ml-4 flex list-disc flex-col gap-1">
-							<li>
-								<strong class="text-foreground">Linux:</strong> mdadm for hardware RAID, or mergerfs to
-								pool drives without redundancy
-							</li>
-							<li>
-								<strong class="text-foreground">ZFS:</strong> zpool with mirror or raidz for redundancy
-								+ compression
-							</li>
-							<li>
-								<strong class="text-foreground">Windows:</strong> Storage Spaces with a mirror or parity
-								layout
-							</li>
-							<li>
-								<strong class="text-foreground">macOS:</strong> Disk Utility RAID sets or SoftRAID
-							</li>
-						</ul>
-					</Card.Content>
-				</Card.Root>
+				</Card>
 			</Tabs.Content>
 
+			<Tabs.Content value="assistant" class="space-y-4">
+				<Card class="p-4">
+					<h3 class="mb-1 text-sm font-medium">AI assistant — file actions</h3>
+					<p class="mb-4 text-sm text-muted-foreground">
+						When the chat assistant wants to change files (delete, move, copy, or create folders),
+						it normally asks for confirmation. You can auto-approve specific action types so they
+						run without a prompt. Preferences are stored in this browser only.
+					</p>
+					<ul class="flex flex-col gap-3">
+						{#each AUTO_APPROVE_SETTINGS as opt (opt.id)}
+							<li>
+								<label
+									class="flex cursor-pointer items-start gap-3 rounded-md border border-transparent p-2 hover:bg-muted/50 has-focus-visible:ring-2 has-focus-visible:ring-ring"
+								>
+									<Checkbox
+										checked={agentAutoApprove[opt.id]}
+										onCheckedChange={(checked) => {
+											const on = !!checked;
+											setAutoApproveSettingEnabled(opt.id, on);
+											agentAutoApprove = { ...agentAutoApprove, [opt.id]: on };
+										}}
+										class="mt-0.5"
+									/>
+									<span class="min-w-0">
+										<span class="block text-sm font-medium text-foreground">{opt.label}</span>
+										<span class="block text-xs text-muted-foreground">{opt.description}</span>
+									</span>
+								</label>
+							</li>
+						{/each}
+					</ul>
+				</Card>
+			</Tabs.Content>
 
-				<Tabs.Content value="users" class="space-y-3">
+			<Tabs.Content value="users" class="space-y-4">
+				<Card class="space-y-2 p-4">
+					<h3 class="text-sm font-medium">Server accounts vs workspace members</h3>
+					<p class="text-sm text-muted-foreground">
+						<strong class="font-medium text-foreground">Users (this tab)</strong> are login accounts for
+						this app: who can sign in, who is a <em>server</em> administrator (settings, storage,
+						reindex, approving signups), and account status.
+					</p>
+					<p class="text-sm text-muted-foreground">
+						<strong class="font-medium text-foreground">Workspace members</strong> are managed under
+						<a href="/workspace" class="font-medium text-primary underline underline-offset-4"
+							>Workspace settings</a
+						>: who may access each workspace’s chats and files, and their role <em>inside that
+							workspace</em> (Admin, Member, Viewer). Someone can be a server user without being in a
+						workspace, or belong to several workspaces with different roles.
+					</p>
+				</Card>
+
 				{#if isAdmin}
-					<div class="flex items-center justify-between">
-						<h2
-							class="flex items-center gap-2 text-sm font-medium tracking-wide text-muted-foreground uppercase"
-						>
-							Pending approvals
-						</h2>
-						<Button variant="outline" size="sm" onclick={loadPending} disabled={pendingLoading}>
-							<RefreshCw class="mr-2 h-3.5 w-3.5 {pendingLoading ? 'animate-spin' : ''}" />
-							Refresh
-						</Button>
+					<div class="rounded-md border">
+						<Table.Root>
+							<Table.Header>
+								<Table.Row>
+									<Table.Head>Username</Table.Head>
+									<Table.Head>Display name</Table.Head>
+									<Table.Head>Server role</Table.Head>
+									<Table.Head>Status</Table.Head>
+									<Table.Head class="w-[220px] text-right">Actions</Table.Head>
+								</Table.Row>
+							</Table.Header>
+							<Table.Body>
+								{#each users as user}
+									<Table.Row>
+										<Table.Cell class="font-mono text-xs">{user.username}</Table.Cell>
+										<Table.Cell>{user.displayName}</Table.Cell>
+										<Table.Cell>
+											{#if user.id === currentUserId || (user.role === 'ADMIN' && !canDemoteServerAdmin(user))}
+												<Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>
+													{user.role}
+												</Badge>
+											{:else}
+												<Select.Root
+													type="single"
+													value={user.role}
+													onValueChange={(val) => {
+														if (val === 'ADMIN' || val === 'USER') updateAppRole(user.id, val);
+													}}
+												>
+													<Select.Trigger class="w-32" size="sm">
+														{user.role}
+													</Select.Trigger>
+													<Select.Content>
+														<Select.Item value="ADMIN">ADMIN</Select.Item>
+														<Select.Item value="USER" disabled={!canDemoteServerAdmin(user)}
+															>USER</Select.Item
+														>
+													</Select.Content>
+												</Select.Root>
+											{/if}
+										</Table.Cell>
+										<Table.Cell>
+											<Badge variant={user.approved ? 'outline' : 'secondary'}>
+												{user.approved ? 'Active' : 'Pending'}
+											</Badge>
+										</Table.Cell>
+										<Table.Cell class="text-right">
+											<Button
+												variant="outline"
+												size="sm"
+												class="border-destructive/30 text-destructive hover:bg-destructive/10"
+												disabled={!canDeactivate(user)}
+												onclick={() => openDeactivateDialog(user.id)}
+											>
+												Deactivate
+											</Button>
+										</Table.Cell>
+									</Table.Row>
+								{/each}
+							</Table.Body>
+						</Table.Root>
 					</div>
 
-					{#if pendingError}
-						<div
-							class="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-						>
-							<AlertCircle class="h-4 w-4 shrink-0" />
-							{pendingError}
-						</div>
-					{/if}
-
-					{#if pendingLoading}
-						{#each [1, 2] as i (i)}
-							<Skeleton class="h-16 rounded-xl" />
-						{/each}
-					{:else if pendingUsers.length === 0}
-						<Card.Root>
-							<Card.Content class="flex flex-col items-center gap-2 py-8 text-muted-foreground">
-								<CheckCircle class="h-8 w-8 opacity-30" />
-								<p class="text-sm">No pending signups</p>
-							</Card.Content>
-						</Card.Root>
-					{:else}
-						{#each pendingUsers as user (user.id)}
-							<Card.Root>
-								<Card.Content class="flex items-center justify-between gap-4 px-5 py-4">
-									<div class="min-w-0">
-										<p class="truncate font-medium">{user.displayName}</p>
-										<p class="font-mono text-xs text-muted-foreground">@{user.username}</p>
-										<p class="text-xs text-muted-foreground">
-											Registered {new Date(user.createdAt).toLocaleDateString()}
-										</p>
-									</div>
-									<div class="flex shrink-0 gap-2">
-										<Button
-											size="sm"
-											variant="outline"
-											class="border-green-500 text-green-600 hover:bg-green-50"
-											onclick={() => approveUser(user.id)}
+					<Dialog.Root
+						bind:open={deactivateDialogOpen}
+						onOpenChange={(open) => {
+							if (!open) deactivateTargetId = null;
+						}}
+					>
+						<Dialog.Content>
+							<Dialog.Header>
+								<Dialog.Title>Deactivate account?</Dialog.Title>
+								<Dialog.Description>
+									{#if deactivateTarget}
+										This signs out <span class="font-medium text-foreground"
+											>{deactivateTarget.displayName}</span
 										>
-											<Check class="mr-1.5 h-3.5 w-3.5" />
-											Approve
+										(<span class="font-mono text-xs">@{deactivateTarget.username}</span>) and blocks
+										further sign-ins for this server account.
+									{/if}
+								</Dialog.Description>
+							</Dialog.Header>
+							<Dialog.Footer>
+								<Button
+									variant="outline"
+									onclick={() => {
+										deactivateDialogOpen = false;
+										deactivateTargetId = null;
+									}}>Cancel</Button
+								>
+								<Button variant="destructive" onclick={deactivateAccount}>Deactivate</Button>
+							</Dialog.Footer>
+						</Dialog.Content>
+					</Dialog.Root>
+
+					{#if pendingUsers.length > 0}
+						<div class="space-y-3">
+							<h3 class="text-sm font-medium">Pending signups</h3>
+							{#each pendingUsers as pending}
+								<Card class="flex items-center justify-between p-4">
+									<div>
+										<p class="font-medium">{pending.displayName}</p>
+										<p class="text-sm text-muted-foreground">@{pending.username}</p>
+									</div>
+									<div class="flex gap-2">
+										<Button
+											variant="outline"
+											size="sm"
+											class="border-green-500/30 text-green-600 hover:bg-green-500/10"
+											onclick={() => approveUser(pending.id)}
+										>
+											<CheckIcon class="size-4" />
+											Accept
 										</Button>
 										<Button
-											size="sm"
 											variant="outline"
-											class="border-destructive/50 text-destructive hover:bg-destructive/10"
-											onclick={() => rejectUser(user.id)}
+											size="sm"
+											class="border-destructive/30 text-destructive hover:bg-destructive/10"
+											onclick={() => rejectUser(pending.id)}
 										>
-											<X class="mr-1.5 h-3.5 w-3.5" />
+											<XIcon class="size-4" />
 											Reject
 										</Button>
 									</div>
-								</Card.Content>
-							</Card.Root>
-						{/each}
-					{/if}
-				{/if}
-					<div class="pt-6">
-						<div class="flex items-center justify-between">
-							<h2
-								class="flex items-center gap-2 text-sm font-medium tracking-wide text-muted-foreground uppercase"
-							>
-								<Users class="h-4 w-4" />
-								User roster
-							</h2>
-							<Button variant="outline" size="sm" onclick={loadUsers} disabled={usersLoading}>
-								<RefreshCw class="mr-2 h-3.5 w-3.5 {usersLoading ? 'animate-spin' : ''}" />
-								Refresh
-							</Button>
-						</div>
-
-						{#if usersError}
-							<div
-								class="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-							>
-								<AlertCircle class="h-4 w-4 shrink-0" />
-								{usersError}
-							</div>
-						{/if}
-
-						{#if usersLoading}
-							{#each [1, 2, 3] as i (i)}
-								<Skeleton class="h-16 rounded-xl" />
+								</Card>
 							{/each}
-						{:else if users.length === 0}
-							<Card.Root>
-								<Card.Content class="flex flex-col items-center gap-2 py-8 text-muted-foreground">
-									<CheckCircle class="h-8 w-8 opacity-30" />
-									<p class="text-sm">No users found</p>
-								</Card.Content>
-							</Card.Root>
-						{:else}
-							<UserRosterTable users={users} />
-						{/if}
-					</div>
-				</Tabs.Content>
+						</div>
+					{/if}
+				{:else}
+					<p class="text-sm text-muted-foreground">
+						Only server administrators can view and change accounts here. Workspace membership is
+						managed in
+						<a href="/workspace" class="font-medium text-primary underline underline-offset-4"
+							>Workspace settings</a
+						>.
+					</p>
+				{/if}
+			</Tabs.Content>
 
 			<Tabs.Content value="info" class="space-y-4">
-				<!-- Build info -->
-				<Card.Root>
-					<Card.Header>
-						<Card.Title class="text-base">About this server</Card.Title>
-					</Card.Header>
-					<Card.Content class="flex flex-col gap-4 text-sm">
-						<div class="flex items-center justify-between border-b border-border py-2">
-							<span class="text-muted-foreground">Application</span>
-							<span class="font-medium">Media Server</span>
-						</div>
-						<div class="flex items-center justify-between border-b border-border py-2">
-							<span class="text-muted-foreground">Version</span>
-							<span class="font-mono font-medium">v1.0.0</span>
-						</div>
-						<div class="flex items-center justify-between border-b border-border py-2">
-							<span class="text-muted-foreground">Build Date</span>
-							<span class="font-medium">{new Date().toLocaleDateString()}</span>
-						</div>
-						<div class="flex items-center justify-between py-2">
-							<span class="text-muted-foreground">Node Environment</span>
-							<Badge variant="outline">development</Badge>
-						</div>
-					</Card.Content>
-				</Card.Root>
+				<Card class="p-4">
+					<h3 class="mb-2 text-sm font-medium">Version</h3>
+					<p class="text-sm text-muted-foreground">Vectraspace Media Server v0.1.0</p>
+				</Card>
 
-				<!-- Legal -->
-				<Card.Root>
-					<Card.Header>
-						<Card.Title class="text-base">Legal</Card.Title>
-					</Card.Header>
-					<Card.Content class="flex flex-col gap-4 text-sm text-muted-foreground">
-						<div>
-							<p class="mb-2 font-medium text-foreground">License</p>
-							<p>
-								This application is provided as-is. Ensure compliance with local laws regarding
-								media storage and access.
-							</p>
-						</div>
-						<Separator />
-						<div>
-							<p class="mb-2 font-medium text-foreground">Data Privacy</p>
-							<p>
-								This server stores user credentials securely using argon2 hashing. Access is
-								controlled via JWT authentication. No data is shared with third parties.
-							</p>
-						</div>
-						<Separator />
-						<div>
-							<p class="mb-2 font-medium text-foreground">Third-party Libraries</p>
-							<p>
-								This application uses open-source libraries including Svelte, SvelteKit, Prisma, and
-								others. See package.json and node_modules for licensing information.
-							</p>
-						</div>
-					</Card.Content>
-				</Card.Root>
+				<Card class="p-4">
+					<h3 class="mb-2 text-sm font-medium">Legal</h3>
+					<p class="text-sm text-muted-foreground">
+						This software is provided as-is for personal use. Use at your own risk. Ensure you have
+						proper backups of your media files.
+					</p>
+				</Card>
 			</Tabs.Content>
 		</Tabs.Root>
 	</main>

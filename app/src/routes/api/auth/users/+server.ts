@@ -1,16 +1,17 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
+import { requireAdmin } from '$lib/server/api';
 import type { RequestHandler } from './$types';
 
-// GET /api/auth/users — admin only, returns all users with role and approval status
+// GET /api/auth/users — admin only, returns all active users
 export const GET: RequestHandler = async ({ locals }) => {
-	if (!locals.user) throw error(401, 'Unauthorized');
-	if (locals.user.role !== 'ADMIN') throw error(403, 'Forbidden');
+	// Re-validate admin role from DB on every request
+	await requireAdmin(locals);
 
+	// Exclude soft-deleted users from the listing
 	const users = await db.user.findMany({
-		orderBy: {
-			createdAt: 'desc'
-		},
+		where: { deletedAt: null },
+		orderBy: { createdAt: 'desc' },
 		select: {
 			id: true,
 			username: true,

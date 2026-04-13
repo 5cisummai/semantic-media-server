@@ -1,41 +1,32 @@
 import { json, error } from '@sveltejs/kit';
-import { createUser, generateAccessToken, generateRefreshToken } from '$lib/server/auth';
+import { createUser, generateRefreshToken } from '$lib/server/auth';
+import { parseBody, signupSchema, audit, checkRateLimit, SIGNUP_RATE_LIMIT } from '$lib/server/api';
 import type { RequestHandler } from './$types';
 
-export const POST: RequestHandler = async ({ request, cookies }) => {
-	let body: unknown;
-	try {
-		body = await request.json();
-	} catch {
-		throw error(400, 'Invalid JSON');
-	}
+export const POST: RequestHandler = async ({ request, cookies, getClientAddress }) => {
+	const clientIp = getClientAddress();
+	checkRateLimit('signup', clientIp, SIGNUP_RATE_LIMIT);
 
-	const { username, displayName, password } = body as Record<string, unknown>;
-
-	if (typeof username !== 'string' || username.trim().length < 3) {
-		throw error(400, 'Username must be at least 3 characters');
-	}
-	if (typeof displayName !== 'string' || displayName.trim().length < 1) {
-		throw error(400, 'Display name is required');
-	}
-	if (typeof password !== 'string'){
-		throw error(400, 'Password is required');
-	};
-	if (password.length < 8) {
-		throw error(400, 'Password must be at least 8 characters');
-	}
+	// Zod validation: enforces types, lengths, format; transforms username
+	// Password is NOT trimmed — whitespace is intentional entropy
+	const { username, displayName, password } = await parseBody(request, signupSchema);
 
 	try {
-		const user = await createUser({
-			username: username.trim().toLowerCase(),
-			displayName: displayName.trim(),
-			password: password.trim()
+		const user = await createUser({ username, displayName, password });
+
+		await audit({
+			action: 'USER_SIGNUP',
+			actorId: user.id,
+			metadata: { username: user.username, autoApproved: user.approved, ip: clientIp }
 		});
 
 		// If user is auto-approved (first user), generate tokens
 		if (user.approved) {
-			const accessToken = generateAccessToken({ sub: user.id, username: user.username, role: user.role });
-			const refreshToken = generateRefreshToken({ sub: user.id, username: user.username, role: user.role });
+			const refreshToken = generateRefreshToken({
+				sub: user.id,
+				username: user.username,
+				role: user.role
+			});
 
 			cookies.set('refreshToken', refreshToken, {
 				httpOnly: true,
@@ -49,8 +40,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				id: user.id,
 				username: user.username,
 				approved: user.approved,
-				role: user.role,
-				accessToken
+				role: user.role
 			});
 		}
 
@@ -61,8 +51,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			role: user.role
 		});
 	} catch (e) {
-		// Unique constraint violation (duplicate username)
 		if (e instanceof Error && e.message.includes('Unique constraint')) {
+			// Don't reveal that the username exists — return a generic message
 			throw error(409, 'Username already taken');
 		}
 		throw e;

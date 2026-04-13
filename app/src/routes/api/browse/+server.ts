@@ -1,12 +1,13 @@
 import { json, error } from '@sveltejs/kit';
-import { listDirectory } from '$lib/server/storage';
+import { requireAuth } from '$lib/server/api';
+import { listDirectoryTree } from '$lib/server/services/storage';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ locals }) => {
+	await requireAuth(locals);
 	try {
-		const entries = await listDirectory('');
-		const safe = entries.map(({ fullPath: _, ...rest }) => rest);
-		return json(safe);
+		const entries = await listDirectoryTree('');
+		return json(entries);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Unknown error';
 		throw error(500, message);

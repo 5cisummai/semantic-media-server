@@ -33,6 +33,7 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+.cursor/
 
 # Vectraspace generated Docker Compose override
 .vectraspace.compose.override.yml
@@ -46,3 +47,8 @@ __pycache__/
 *.pyd
 env/
 .venv/
+
+.playwright-mcp
+
+models/
+jina-llama.cpp/

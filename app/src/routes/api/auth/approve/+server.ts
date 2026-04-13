@@ -1,54 +1,88 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
+import {
+	requireAdmin,
+	parseBody,
+	approveUserSchema,
+	audit,
+	checkRateLimit,
+	ADMIN_RATE_LIMIT,
+	operationFailedResponse
+} from '$lib/server/api';
+import { invalidateUserCache } from '../../../../hooks.server';
 import type { RequestHandler } from './$types';
 
 // POST /api/auth/approve — admin only, approves a pending user
-// Body: { userId: string }
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.user) throw error(401, 'Unauthorized');
-	if (locals.user.role !== 'ADMIN') throw error(403, 'Forbidden');
+	// Re-validate admin role from DB (not just JWT)
+	const admin = await requireAdmin(locals);
+	checkRateLimit('admin', admin.id, ADMIN_RATE_LIMIT);
 
-	let body: unknown;
-	try {
-		body = await request.json();
-	} catch {
-		throw error(400, 'Invalid JSON');
+	// Validate input with Zod (.strict() rejects unexpected fields)
+	const { userId } = await parseBody(request, approveUserSchema);
+
+	// Prevent self-approval (defense in depth — admin is already approved)
+	if (userId === admin.id) {
+		return operationFailedResponse('Admin attempted self-approval');
 	}
 
-	const { userId } = body as Record<string, unknown>;
-	if (typeof userId !== 'string') throw error(400, 'userId is required');
+	// Atomic conditional update — eliminates the TOCTOU race condition.
+	// The WHERE clause ensures we only approve a user that is:
+	//   1. Not already approved
+	//   2. Not soft-deleted
+	// If the row doesn't match, updateMany returns count: 0.
+	const result = await db.user.updateMany({
+		where: { id: userId, approved: false, deletedAt: null },
+		data: { approved: true }
+	});
 
-	const user = await db.user.findUnique({ where: { id: userId } });
-	if (!user) throw error(404, 'User not found');
-	if (user.approved) throw error(409, 'User is already approved');
+	if (result.count === 0) {
+		// Deliberately vague — don't reveal if user exists, is approved, or is deleted
+		return operationFailedResponse(`Approve failed for target=${userId} by actor=${admin.id}`);
+	}
 
-	await db.user.update({ where: { id: userId }, data: { approved: true } });
+	invalidateUserCache(userId);
+	await audit({
+		action: 'USER_APPROVED',
+		actorId: admin.id,
+		targetId: userId,
+		metadata: { actorUsername: admin.username }
+	});
 
 	return json({ success: true });
 };
 
-// DELETE /api/auth/approve — admin only, rejects (deletes) a pending user
-// Body: { userId: string }
+// DELETE /api/auth/approve — admin only, rejects (soft-deletes) a pending user
 export const DELETE: RequestHandler = async ({ request, locals }) => {
-	if (!locals.user) throw error(401, 'Unauthorized');
-	if (locals.user.role !== 'ADMIN') throw error(403, 'Forbidden');
+	const admin = await requireAdmin(locals);
+	checkRateLimit('admin', admin.id, ADMIN_RATE_LIMIT);
 
-	let body: unknown;
-	try {
-		body = await request.json();
-	} catch {
-		throw error(400, 'Invalid JSON');
+	const { userId } = await parseBody(request, approveUserSchema);
+
+	// Prevent self-rejection
+	if (userId === admin.id) {
+		return operationFailedResponse('Admin attempted self-rejection');
 	}
 
-	const { userId } = body as Record<string, unknown>;
-	if (typeof userId !== 'string') throw error(400, 'userId is required');
+	// Soft delete instead of hard delete — preserves audit trail and enables recovery.
+	// Only reject users that are still pending (not approved) and not already deleted.
+	const result = await db.user.updateMany({
+		where: { id: userId, approved: false, deletedAt: null },
+		data: { deletedAt: new Date() }
+	});
 
-	// Only allow rejecting accounts that are still pending
-	const user = await db.user.findUnique({ where: { id: userId } });
-	if (!user) throw error(404, 'User not found');
-	if (user.approved) throw error(409, 'Cannot reject an already approved user');
+	if (result.count === 0) {
+		return operationFailedResponse(`Reject failed for target=${userId} by actor=${admin.id}`);
+	}
 
-	await db.user.delete({ where: { id: userId } });
+	invalidateUserCache(userId);
+
+	await audit({
+		action: 'USER_REJECTED',
+		actorId: admin.id,
+		targetId: userId,
+		metadata: { actorUsername: admin.username }
+	});
 
 	return json({ success: true });
 };

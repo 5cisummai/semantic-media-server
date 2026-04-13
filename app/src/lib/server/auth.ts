@@ -87,23 +87,38 @@ export async function createUser(opts: {
 }) {
 	const passwordHash = await hashPassword(opts.password);
 
-	// First user becomes auto-approved admin
-	const count = await db.user.count();
-	const isFirst = count === 0;
+	// Use a transaction to atomically determine if this is the first user.
+	// Without this, two concurrent signups could both see count=0 and both
+	// become ADMIN — a critical privilege escalation vulnerability.
+	return db.$transaction(async (tx) => {
+		const count = await tx.user.count();
+		const isFirst = count === 0;
 
-	return db.user.create({
-		data: {
-			username: opts.username,
-			displayName: opts.displayName,
-			passwordHash,
-			role: isFirst ? 'ADMIN' : 'USER',
-			approved: isFirst
-		}
+		return tx.user.create({
+			data: {
+				username: opts.username,
+				displayName: opts.displayName,
+				passwordHash,
+				role: isFirst ? 'ADMIN' : 'USER',
+				approved: isFirst
+			}
+		});
 	});
 }
 
 export function findUserByUsername(username: string) {
-	return db.user.findUnique({ where: { username } });
+	return db.user.findUnique({
+		where: { username },
+		select: {
+			id: true,
+			username: true,
+			displayName: true,
+			passwordHash: true,
+			role: true,
+			approved: true,
+			deletedAt: true
+		}
+	});
 }
 
 export function getUserById(id: string) {

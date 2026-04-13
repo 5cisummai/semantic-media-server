@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { Button } from "$lib/components/ui/button/index.js";
-	import * as Card from "$lib/components/ui/card/index.js";
-	import { Input } from "$lib/components/ui/input/index.js";
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
 	import {
 		FieldGroup,
 		Field,
 		FieldLabel,
-		FieldDescription,
-	} from "$lib/components/ui/field/index.js";
+		FieldDescription
+	} from '$lib/components/ui/field/index.js';
 	import { resolve } from '$app/paths';
 
 	const id = $props.id();
@@ -19,14 +19,37 @@
 	let errorMsg = $state('');
 	let loading = $state(false);
 
-	onMount(() => {
-		// If user already has a valid access token, redirect to app
-		const token = localStorage.getItem('accessToken');
-		if (token) {
-			const next = new URLSearchParams(location.search).get('next') ?? '/';
-			// eslint-disable-next-line svelte/no-navigation-without-resolve
-			goto(next);
+	function clearLegacyAuthStorage() {
+		if (typeof localStorage === 'undefined') return;
+		localStorage.removeItem('accessToken');
+		localStorage.removeItem('username');
+		localStorage.removeItem('role');
+	}
+
+	function safeNextPath(): string {
+		const raw = new URLSearchParams(location.search).get('next') ?? '/';
+		if (!raw.startsWith('/') || raw.startsWith('//')) return '/';
+		try {
+			const parsed = new URL(raw, location.origin);
+			if (parsed.origin !== location.origin) return '/';
+			return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/';
+		} catch {
+			return '/';
 		}
+	}
+
+	onMount(() => {
+		void (async () => {
+			clearLegacyAuthStorage();
+			try {
+				const res = await fetch('/api/auth/me');
+				if (!res.ok) return;
+				// eslint-disable-next-line svelte/no-navigation-without-resolve
+				goto(safeNextPath());
+			} catch {
+				// Ignore network errors; user can still log in manually.
+			}
+		})();
 	});
 
 	async function handleSubmit(e: SubmitEvent) {
@@ -44,12 +67,9 @@
 				errorMsg = data.message ?? 'Login failed';
 				return;
 			}
-			localStorage.setItem('accessToken', data.accessToken);
-			localStorage.setItem('username', data.username);
-			localStorage.setItem('role', data.role);
-			const next = new URLSearchParams(location.search).get('next') ?? '/';
+			clearLegacyAuthStorage();
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
-			goto(next);
+			goto(safeNextPath());
 		} finally {
 			loading = false;
 		}
@@ -69,11 +89,23 @@
 				{/if}
 				<Field>
 					<FieldLabel for="username-{id}">Username</FieldLabel>
-					<Input id="username-{id}" type="text" placeholder="Enter your username" bind:value={username} required />
+					<Input
+						id="username-{id}"
+						type="text"
+						placeholder="Enter your username"
+						bind:value={username}
+						required
+					/>
 				</Field>
 				<Field>
 					<FieldLabel for="password-{id}">Password</FieldLabel>
-					<Input id="password-{id}" type="password" bind:value={password} required />
+					<Input
+						id="password-{id}"
+						type="password"
+						autocomplete="current-password"
+						bind:value={password}
+						required
+					/>
 				</Field>
 				<Field>
 					<Button type="submit" class="w-full" disabled={loading}>
