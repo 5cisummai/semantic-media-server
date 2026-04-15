@@ -61,11 +61,7 @@ function embeddingFromMultimodalResponse(body: unknown): number[] {
 	};
 
 	// Try multiple locations where the embedding might live
-	const candidates = [
-		o.data?.[0]?.embedding,
-		o.embedding,
-		o.results?.[0]?.embedding
-	];
+	const candidates = [o.data?.[0]?.embedding, o.embedding, o.results?.[0]?.embedding];
 
 	for (const raw of candidates) {
 		if (raw === undefined || raw === null) continue;
@@ -172,9 +168,7 @@ async function embedWithMultimodal(input: MultimodalInput): Promise<number[]> {
 		payload.content = prefix + input.text;
 	} else if (input.type === 'image') {
 		const mime = guessMimeType(input.filename);
-		const imagePrompt =
-			env.MULTIMODAL_IMAGE_PROMPT?.trim() ||
-			'Describe the image.';
+		const imagePrompt = env.MULTIMODAL_IMAGE_PROMPT?.trim() || 'Describe the image.';
 		payload.content = imagePrompt;
 		payload.image = `data:${mime};base64,${input.imageBase64}`;
 	} else {
@@ -197,7 +191,8 @@ async function embedWithMultimodal(input: MultimodalInput): Promise<number[]> {
 		const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
 		throw new Error(
 			`Multimodal embedding server unreachable at ${endpoint}: ${msg}. ` +
-				`Ensure the Jina llama-server is running (startup.sh) and MULTIMODAL_EMBEDDING_URL is correct.`
+				`Ensure the Jina llama-server is running (startup.sh) and MULTIMODAL_EMBEDDING_URL is correct.`,
+			{ cause: fetchErr }
 		);
 	}
 
@@ -352,7 +347,9 @@ export async function embedImage(filePath: string): Promise<number[] | null> {
 
 	const stat = await fs.stat(filePath);
 	if (stat.size > MAX_IMAGE_BYTES) {
-		console.warn(`[embedding] skipping oversized image (${(stat.size / 1024 / 1024).toFixed(1)} MB): ${filePath}`);
+		console.warn(
+			`[embedding] skipping oversized image (${(stat.size / 1024 / 1024).toFixed(1)} MB): ${filePath}`
+		);
 		return null;
 	}
 
@@ -385,7 +382,9 @@ export async function checkEmbeddingHealth(): Promise<{ ok: boolean; error?: str
 			if (!rawUrl) return { ok: false, error: 'MULTIMODAL_EMBEDDING_URL is not set' };
 			// Strip path components (/embeddings, /v1/embeddings, etc.) to reach server root /health
 			const urlObj = new URL(rawUrl.trim());
-			const response = await fetch(`${urlObj.origin}/health`, { signal: AbortSignal.timeout(5000) });
+			const response = await fetch(`${urlObj.origin}/health`, {
+				signal: AbortSignal.timeout(5000)
+			});
 			if (!response.ok) return { ok: false, error: `Health check returned ${response.status}` };
 			return { ok: true };
 		}

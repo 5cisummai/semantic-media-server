@@ -143,4 +143,4 @@ export interface ConfirmRunConfig {
 
 export const DEFAULT_LIMIT = 8;
 export const DEFAULT_MIN_SCORE = 0.5;
-export const MAX_AGENT_ITERATIONS = 40;
+export const MAX_AGENT_ITERATIONS = 100;

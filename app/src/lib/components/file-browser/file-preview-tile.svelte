@@ -36,7 +36,10 @@
 		'xls',
 		'xlsx',
 		'ppt',
-		'pptx'
+		'pptx',
+		'epub',
+		'cbz',
+		'cbr'
 	]);
 
 	const normalizedName = $derived(item.name ?? item.path ?? 'Untitled');
@@ -66,13 +69,17 @@
 		if (isDocument) return FileTextIcon;
 		return FileIcon;
 	});
+
+	/** Thumbnail preview only for raster/visual media; folders/docs/audio use icons only. */
+	const showImagePreview = $derived(isImage && !!mediaUrl);
+	const showVideoPreview = $derived(isVideo && !!mediaUrl);
 </script>
 
 <article class={`group flex min-w-0 flex-col gap-2 ${className}`}>
-	<div
-		class="relative aspect-square overflow-hidden rounded-lg border border-border bg-muted/30 transition-colors group-hover:bg-muted/50"
-	>
-		{#if isImage && mediaUrl}
+	{#if showImagePreview}
+		<div
+			class="relative aspect-square overflow-hidden rounded-lg bg-muted/25 transition-colors group-hover:bg-muted/40"
+		>
 			<img
 				src={mediaUrl}
 				alt={normalizedName}
@@ -80,7 +87,11 @@
 				loading="lazy"
 				decoding="async"
 			/>
-		{:else if isVideo && mediaUrl}
+		</div>
+	{:else if showVideoPreview}
+		<div
+			class="relative aspect-square overflow-hidden rounded-lg bg-muted/25 transition-colors group-hover:bg-muted/40"
+		>
 			<video
 				src={mediaUrl}
 				class="h-full w-full object-cover"
@@ -89,12 +100,15 @@
 				playsinline
 				controls={false}
 			></video>
-		{:else}
-			<div class="flex h-full w-full items-center justify-center text-muted-foreground">
-				<TileIcon class="size-10 shrink-0" />
-			</div>
-		{/if}
-	</div>
+		</div>
+	{:else}
+		<div
+			class="flex aspect-square items-center justify-center rounded-lg text-muted-foreground transition-colors group-hover:text-foreground"
+			aria-hidden="true"
+		>
+			<TileIcon class="size-12 shrink-0" />
+		</div>
+	{/if}
 
 	<div class="min-w-0">
 		<p class="truncate text-sm font-medium text-foreground">{normalizedName}</p>

@@ -381,7 +381,7 @@ Rebuilds the **workspace** semantic index (`ws_{workspaceId}_semantic`) by scann
 
 **Auth**: Required; workspace **member** or higher.
 
-Runs a **server-side agent loop** (up to 40 iterations) with tool calling (`search`, `list_directory`, `get_file_info`, `read_file`, `search_by_metadata`, and optional mutating tools with confirmation). Chats and agent runs are scoped to `{workspaceId}`.
+Runs a **server-side agent loop** (up to 100 iterations) with tool calling (`search`, `list_directory`, `get_file_info`, `read_file`, `search_by_metadata`, and optional mutating tools with confirmation). Chats and agent runs are scoped to `{workspaceId}`.
 
 **Body**:
 
