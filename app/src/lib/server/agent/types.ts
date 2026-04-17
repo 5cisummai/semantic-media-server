@@ -39,7 +39,7 @@ export interface ToolCallSummary {
 
 export interface AgentRequest {
 	question: string;
-	history?: ConversationMessage[];
+	history?: StoredChatMessage[];
 	filters?: AskFilters;
 	/**
 	 * Tool names the client has opted to run without confirmation (browser preference).
@@ -52,6 +52,18 @@ export interface AgentRequest {
 export interface ConversationMessage {
 	role: 'user' | 'assistant';
 	content: string;
+}
+
+/** Stored message from DB with optional tool call metadata. */
+export interface StoredChatMessage {
+	id: string;
+	role: 'user' | 'assistant';
+	content: string;
+	sources?: unknown;
+	toolCalls?: unknown;
+	model?: string | null;
+	iterations?: number | null;
+	createdAt: string;
 }
 
 // ---------------------------------------------------------------------------

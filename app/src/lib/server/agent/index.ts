@@ -23,7 +23,6 @@ import {
 	resolveOrCreateChat,
 	ensureOwnedChatSession,
 	getChatMessagesForUser,
-	messagesToLlmHistory,
 	saveUserMessage
 } from '$lib/server/chat-store';
 import { takePendingConfirmation } from '$lib/server/pending-tool-confirmation';
@@ -88,10 +87,7 @@ export async function runAgent(
 		if (previousMessages.length === 0) throw error(400, 'No messages to regenerate from');
 		const last = previousMessages[previousMessages.length - 1];
 		if (last.role !== 'user') throw error(400, 'Last message must be a user message to regenerate');
-		const history = sliceHistory(
-			messagesToLlmHistory(previousMessages.slice(0, -1)),
-			config.maxHistoryMessages
-		);
+		const history = sliceHistory(previousMessages.slice(0, -1), config.maxHistoryMessages);
 		bodyForAgent = {
 			question: last.content,
 			history,
@@ -109,7 +105,7 @@ export async function runAgent(
 		});
 		chatId = chat.id;
 		const previousMessages = await getChatMessagesForUser(config.userId, chatId);
-		const history = sliceHistory(messagesToLlmHistory(previousMessages), config.maxHistoryMessages);
+		const history = sliceHistory(previousMessages, config.maxHistoryMessages);
 		savedUserMessageId = await saveUserMessage(chatId, question);
 		bodyForAgent = {
 			question,
