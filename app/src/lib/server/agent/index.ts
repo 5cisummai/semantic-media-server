@@ -5,18 +5,17 @@
 //   runAgent()     — handle a new question or regeneration
 //   confirmTool()  — handle tool approval/denial and resume
 //
-// All runs use background transport — the client polls via SSE.
+// All runs use SSE streaming — the client receives real-time events.
 // ---------------------------------------------------------------------------
 
-import { json, error } from '@sveltejs/kit';
-import { run as sdkRun, RunState } from '@openai/agents';
+import { error } from '@sveltejs/kit';
+import { RunState } from '@openai/agents';
 import { env } from '$env/dynamic/private';
 import type { AgentRequest, AgentRunConfig, ConfirmRunConfig } from './types';
-import { MAX_AGENT_ITERATIONS } from './types';
 import { createAppContext, type AgentAppContext } from './context';
 import { AgentLogger } from './logger';
 import { normalizeFilters } from './filters';
-import { startBackgroundRun } from './transport/background';
+import { createStreamingResponse, createConfirmStreamingResponse } from './transport/stream';
 import { sliceHistory } from './memory/history';
 import { getMediaAgent } from './agent';
 import { configureAgentProvider, getAgentModel } from './provider';
@@ -25,18 +24,9 @@ import {
 	ensureOwnedChatSession,
 	getChatMessagesForUser,
 	messagesToLlmHistory,
-	saveUserMessage,
-	saveAssistantMessage
+	saveUserMessage
 } from '$lib/server/chat-store';
-import {
-	createAgentRun,
-	markRunRunning,
-	markRunDone,
-	markRunFailed,
-	supersedeOtherRunsForChat
-} from '$lib/server/agent-runs';
 import { takePendingConfirmation } from '$lib/server/pending-tool-confirmation';
-import { errorMessage } from './errors';
 
 // Configure the LLM provider once at module initialization
 configureAgentProvider();
@@ -44,10 +34,6 @@ configureAgentProvider();
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function getModel(): string {
-	return env.LLM_MODEL ?? getAgentModel();
-}
 
 function makeContext(
 	config: {
@@ -72,7 +58,7 @@ function makeContext(
 }
 
 // ---------------------------------------------------------------------------
-// runAgent — handles new questions and regenerations (background-only)
+// runAgent — handles new questions and regenerations (SSE streaming)
 // ---------------------------------------------------------------------------
 
 export async function runAgent(
@@ -147,16 +133,15 @@ export async function runAgent(
 
 	logger.info('agent.run', { chatId, regenerate: !!config.regenerate });
 
-	const result = await startBackgroundRun(bodyForAgent, ctx, {
+	return createStreamingResponse(bodyForAgent, ctx, {
 		chatId,
 		kind: 'ask',
 		savedUserMessageId
 	});
-	return json(result);
 }
 
 // ---------------------------------------------------------------------------
-// confirmTool — handles tool approval/denial and resumes the loop
+// confirmTool — handles tool approval/denial and resumes the loop (SSE streaming)
 // ---------------------------------------------------------------------------
 
 export async function confirmTool(config: ConfirmRunConfig): Promise<Response> {
@@ -203,33 +188,8 @@ export async function confirmTool(config: ConfirmRunConfig): Promise<Response> {
 
 	logger.info('agent.confirm', { chatId, approved: config.approved });
 
-	// Background resume
-	const model = getModel();
-	const agentRun = await createAgentRun(ctx.userId, chatId, 'confirm', ctx.workspaceId);
-	await supersedeOtherRunsForChat(ctx.userId, chatId, agentRun.id);
-
-	void (async () => {
-		await markRunRunning(agentRun.id);
-		try {
-			const sdkResult = await sdkRun(agent, runState, {
-				context: ctx,
-				maxTurns: MAX_AGENT_ITERATIONS
-			});
-			const finalText = typeof sdkResult.finalOutput === 'string' ? sdkResult.finalOutput : null;
-			const answer = finalText ?? "I couldn't complete the request. Please try again.";
-			await saveAssistantMessage(chatId, answer, {
-				sources: ctx.sourceTracker.toArray(),
-				toolCalls: ctx.toolCalls,
-				model,
-				iterations: 0
-			});
-			await markRunDone(agentRun.id);
-		} catch (err) {
-			const message = errorMessage(err);
-			ctx.logger.error('resume_bg.failed', { error: message });
-			await markRunFailed(agentRun.id, message);
-		}
-	})();
-
-	return json({ chatId, runId: agentRun.id, status: 'queued' });
+	return createConfirmStreamingResponse(runState, ctx, {
+		chatId,
+		kind: 'confirm'
+	});
 }

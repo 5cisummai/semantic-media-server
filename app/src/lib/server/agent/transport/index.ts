@@ -1,5 +1,9 @@
 // ---------------------------------------------------------------------------
-// agent/transport/index.ts — Transport exports (background-only)
+// agent/transport/index.ts — Transport exports
 // ---------------------------------------------------------------------------
 
-export { startBackgroundRun, type BackgroundRunResult } from './background';
+export {
+	createStreamingResponse,
+	createConfirmStreamingResponse,
+	type StreamRunOpts
+} from './stream';

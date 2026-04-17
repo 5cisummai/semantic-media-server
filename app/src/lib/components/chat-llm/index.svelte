@@ -50,6 +50,8 @@
 	let streamingToolSteps = $state<ToolActionStep[]>([]);
 	/** Holds the model's reasoning text emitted just before a tool_start event. */
 	let pendingThinking = $state<string>('');
+	/** Text being streamed token-by-token for the current assistant reply. */
+	let streamingText = $state('');
 	let pendingToolConfirmation = $state<PendingToolConfirmation | null>(null);
 	let scrollEl = $state<HTMLElement | null>(null);
 	let loadingConversation = $state(false);
@@ -58,9 +60,7 @@
 	let maxHistoryMessages = $state(40);
 	let lastSendAt = $state(0);
 	let pendingScrollMessageId = $state<string | null>(null);
-	let backgroundRunId = $state<string | null>(null);
-	let backgroundPollTimer: ReturnType<typeof setTimeout> | null = null;
-	/** Aborts in-flight ask/confirm HTTP and background status polls for the current run. */
+	/** Aborts in-flight ask/confirm HTTP and SSE stream for the current run. */
 	let agentRunAbortController: AbortController | null = null;
 
 	// Sync local status to the global agentSessions store so any page can
@@ -87,16 +87,134 @@
 		);
 	}
 
-	type BackgroundRunStatus = 'queued' | 'running' | 'awaiting_confirmation' | 'done' | 'failed';
-	type BackgroundToolStreamEntry = { type: 'tool_start' | 'tool_done'; tool: string };
-	type BackgroundRunPayload = {
-		id: string;
-		chatId: string;
-		status: BackgroundRunStatus;
-		error?: string | null;
-		pendingToolConfirmation?: PendingToolConfirmation | null;
-		toolStreamLog?: BackgroundToolStreamEntry[];
-	};
+	// ---------------------------------------------------------------------------
+	// SSE stream parser — reads a fetch Response body as SSE events
+	// ---------------------------------------------------------------------------
+
+	async function consumeSSEStream(
+		response: Response,
+		signal: AbortSignal
+	): Promise<void> {
+		const reader = response.body?.getReader();
+		if (!reader) throw new Error('No response body');
+
+		const decoder = new TextDecoder();
+		let buffer = '';
+
+		try {
+			while (true) {
+				if (signal.aborted) break;
+				const { done, value } = await reader.read();
+				if (done) break;
+
+				buffer += decoder.decode(value, { stream: true });
+				const lines = buffer.split('\n');
+				buffer = lines.pop() ?? '';
+
+				let currentEvent = '';
+				for (const line of lines) {
+					if (line.startsWith('event: ')) {
+						currentEvent = line.slice(7).trim();
+					} else if (line.startsWith('data: ')) {
+						const dataStr = line.slice(6);
+						try {
+							const data = JSON.parse(dataStr);
+							handleSSEEvent(currentEvent, data);
+						} catch {
+							// malformed JSON — skip
+						}
+						currentEvent = '';
+					} else if (line.startsWith(': ')) {
+						// comment / keepalive — skip
+					}
+				}
+			}
+		} finally {
+			reader.releaseLock();
+		}
+	}
+
+	function handleSSEEvent(event: string, data: Record<string, unknown>): void {
+		switch (event) {
+			case 'run_started': {
+				if (typeof data.chatId === 'string') {
+					activeChatId = data.chatId;
+				}
+				if (typeof data.userMessageId === 'string') {
+					const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
+					if (lastUserIdx !== -1) {
+						messages = messages.map((m, i) =>
+							i === lastUserIdx ? { ...m, id: data.userMessageId as string } : m
+						);
+					}
+				}
+				break;
+			}
+			case 'text_delta': {
+				if (typeof data.delta === 'string') {
+					streamingText += data.delta;
+				}
+				break;
+			}
+			case 'reasoning': {
+				if (typeof data.text === 'string') {
+					pendingThinking += (pendingThinking ? '\n' : '') + data.text;
+				}
+				break;
+			}
+			case 'tool_start': {
+				if (typeof data.tool === 'string') {
+					pushToolStart(
+						data.tool,
+						data.args as Record<string, unknown> | undefined,
+						pendingThinking || undefined
+					);
+				}
+				break;
+			}
+			case 'tool_done': {
+				markLastToolDone();
+				break;
+			}
+			case 'confirmation': {
+				pendingToolConfirmation = {
+					pendingId: data.pendingId as string,
+					tool: data.tool as string,
+					args: (data.args ?? {}) as Record<string, unknown>,
+					chatId: (data.chatId ?? activeChatId ?? '') as string
+				};
+				break;
+			}
+			case 'meta': {
+				// Finalize the streamed message with metadata
+				if (streamingText.trim()) {
+					const assistantMsg: ChatMessage = {
+						id: (data.messageId as string) ?? crypto.randomUUID(),
+						role: 'assistant',
+						content: streamingText,
+						status: 'success',
+						sources: data.sources as Source[] | undefined,
+						toolCalls: data.toolCalls as ToolCallSummary[] | undefined,
+						model: data.model as string | undefined,
+						iterations: data.iterations as number | undefined,
+						assistantVariants: [streamingText],
+						variantIndex: 0
+					};
+					messages = [...messages, assistantMsg];
+				}
+				break;
+			}
+			case 'error': {
+				const msg = typeof data.message === 'string' ? data.message : 'Agent error';
+				error = msg;
+				break;
+			}
+			case 'done': {
+				// Stream finished
+				break;
+			}
+		}
+	}
 
 	function toolLabelForName(name: string): string {
 		const map: Record<string, string> = {
@@ -111,28 +229,6 @@
 			mkdir: 'Create folder (needs your approval)'
 		};
 		return map[name] ?? `Using ${name}`;
-	}
-
-	function toolStepsFromStreamLog(events: Array<{ type: string; tool: string }>): ToolActionStep[] {
-		const steps: ToolActionStep[] = [];
-		for (const e of events) {
-			if (e.type === 'tool_start' && typeof e.tool === 'string') {
-				steps.push({
-					label: toolLabelForName(e.tool),
-					toolName: e.tool,
-					done: false,
-					expanded: false
-				});
-			} else if (e.type === 'tool_done' && typeof e.tool === 'string') {
-				for (let i = steps.length - 1; i >= 0; i--) {
-					if (!steps[i].done) {
-						steps[i] = { ...steps[i], done: true };
-						break;
-					}
-				}
-			}
-		}
-		return steps;
 	}
 
 	function pushToolStart(name: string, args?: Record<string, unknown>, thinking?: string) {
@@ -224,129 +320,22 @@
 		});
 	}
 
-	function clearBackgroundPolling() {
-		if (backgroundPollTimer) {
-			clearTimeout(backgroundPollTimer);
-			backgroundPollTimer = null;
-		}
-	}
-
 	function stopAgent() {
 		agentRunAbortController?.abort();
 		agentRunAbortController = null;
-		clearBackgroundPolling();
-		backgroundRunId = null;
 		loading = false;
 		streamingToolSteps = [];
+		streamingText = '';
 		pendingThinking = '';
 		activeAgentStatus = 'done';
 	}
 
-	function scheduleBackgroundPoll(runId: string) {
-		clearBackgroundPolling();
-		backgroundPollTimer = setTimeout(() => {
-			void pollBackgroundRun(runId);
-		}, 1200);
-	}
-
-	async function beginBackgroundRunTracking(
-		runId: string,
-		chatId: string,
-		initialToolLog?: BackgroundToolStreamEntry[]
-	) {
-		backgroundRunId = runId;
-		activeChatId = chatId;
-		loading = true;
-		activeAgentStatus = 'working';
-		error = null;
-		streamingToolSteps =
-			initialToolLog && initialToolLog.length > 0 ? toolStepsFromStreamLog(initialToolLog) : [];
-		pendingToolConfirmation = null;
-		scheduleBackgroundPoll(runId);
-	}
-
-	async function maybeAttachToActiveBackgroundRun(chatId: string) {
-		if (!apiRoot) return;
-		const response = await apiFetch(
-			`${apiRoot}/runs/active?chatId=${encodeURIComponent(chatId)}`
-		).catch(() => null);
-		if (!response?.ok) return;
-		const payload = (await response.json()) as { run?: BackgroundRunPayload | null };
-		const run = payload.run;
-		if (!run || !run.id) return;
-		agentRunAbortController?.abort();
-		agentRunAbortController = new AbortController();
-		await beginBackgroundRunTracking(run.id, run.chatId, run.toolStreamLog);
-	}
-
-	async function pollBackgroundRun(runId: string) {
-		if (!runId || runId !== backgroundRunId) return;
-		try {
-			if (!apiRoot) return;
-			const response = await apiFetch(`${apiRoot}/runs/${encodeURIComponent(runId)}`, {
-				signal: agentRunAbortController?.signal
-			});
-			if (!response.ok) {
-				throw new Error(`Run status failed (${response.status})`);
-			}
-
-			const run = (await response.json()) as BackgroundRunPayload;
-			if (run.status === 'queued' || run.status === 'running') {
-				if (Array.isArray(run.toolStreamLog)) {
-					streamingToolSteps = toolStepsFromStreamLog(run.toolStreamLog);
-				}
-				scheduleBackgroundPoll(runId);
-				return;
-			}
-
-			backgroundRunId = null;
-			clearBackgroundPolling();
-			streamingToolSteps = [];
-			loading = false;
-			agentRunAbortController = null;
-
-			if (run.status === 'awaiting_confirmation' && run.pendingToolConfirmation) {
-				pendingToolConfirmation = run.pendingToolConfirmation;
-				activeAgentStatus = 'done';
-				onListRefresh?.();
-				return;
-			}
-
-			if (run.status === 'failed') {
-				error = run.error ?? 'Agent run failed';
-				activeAgentStatus = 'done';
-				onListRefresh?.();
-				return;
-			}
-
-			if (run.status === 'done') {
-				activeAgentStatus = 'done';
-				pendingToolConfirmation = null;
-				onListRefresh?.();
-				if (activeChatId) {
-					await loadConversationFromServer(activeChatId);
-				}
-				return;
-			}
-		} catch (err) {
-			if (runId !== backgroundRunId) return;
-			if (isAbortError(err)) return;
-			error = err instanceof Error ? err.message : 'Background run status failed';
-			loading = false;
-			activeAgentStatus = 'done';
-			streamingToolSteps = [];
-			clearBackgroundPolling();
-			backgroundRunId = null;
-			agentRunAbortController = null;
-		}
-	}
-
-	// Auto-scroll to bottom when messages, loading, or tool steps change.
-	// $effect runs after DOM updates so no tick() is needed.
+	// Auto-scroll to bottom when messages, loading, streaming text, or tool steps change.
 	$effect(() => {
 		void messages;
 		void loading;
 		void streamingToolSteps;
+		void streamingText;
 		scrollToBottom();
 	});
 
@@ -386,6 +375,7 @@
 		activeAgentStatus = 'working';
 		error = null;
 		streamingToolSteps = [];
+		streamingText = '';
 		pendingThinking = '';
 		pendingToolConfirmation = null;
 
@@ -403,7 +393,6 @@
 				body: JSON.stringify({
 					chatId: activeChatId,
 					question: options.question,
-					background: true,
 					filters: { limit: 16 },
 					regenerate: options.regenerate === true,
 					maxHistoryMessages: maxHistoryMessages,
@@ -419,27 +408,23 @@
 				);
 			}
 
-			const result = (await response.json()) as {
-				chatId: string;
-				runId: string;
-				userMessageId?: string;
-			};
-			// Update the optimistic user message with the real server-assigned ID
-			if (result.userMessageId) {
-				const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
-				if (lastUserIdx !== -1) {
-					messages = messages.map((m, i) =>
-						i === lastUserIdx ? { ...m, id: result.userMessageId! } : m
-					);
-				}
-			}
-			await beginBackgroundRunTracking(result.runId, result.chatId);
+			// Consume the SSE stream
+			await consumeSSEStream(response, signal);
+
+			// Stream finished
+			loading = false;
+			streamingToolSteps = [];
+			streamingText = '';
+			pendingThinking = '';
+			agentRunAbortController = null;
+			activeAgentStatus = pendingToolConfirmation ? 'done' : 'done';
 			onListRefresh?.();
 		} catch (err) {
 			if (isAbortError(err)) {
 				loading = false;
 				activeAgentStatus = 'done';
 				streamingToolSteps = [];
+				streamingText = '';
 				pendingThinking = '';
 				agentRunAbortController = null;
 				return;
@@ -447,6 +432,7 @@
 			loading = false;
 			activeAgentStatus = 'done';
 			streamingToolSteps = [];
+			streamingText = '';
 			pendingThinking = '';
 			agentRunAbortController = null;
 			const msg = err instanceof Error ? err.message : 'An error occurred';
@@ -487,6 +473,7 @@
 		activeAgentStatus = 'working';
 		error = null;
 		streamingToolSteps = [];
+		streamingText = '';
 		pendingThinking = '';
 		pendingToolConfirmation = null;
 
@@ -505,7 +492,6 @@
 					pendingId: pending.pendingId,
 					approved,
 					chatId: pending.chatId,
-					background: true,
 					autoApproveToolNames
 				}),
 				signal
@@ -518,14 +504,22 @@
 				);
 			}
 
-			const result = (await response.json()) as { chatId: string; runId: string };
-			await beginBackgroundRunTracking(result.runId, result.chatId);
+			// Consume the SSE stream
+			await consumeSSEStream(response, signal);
+
+			loading = false;
+			streamingToolSteps = [];
+			streamingText = '';
+			pendingThinking = '';
+			agentRunAbortController = null;
+			activeAgentStatus = 'done';
 			onListRefresh?.();
 		} catch (err) {
 			if (isAbortError(err)) {
 				loading = false;
 				activeAgentStatus = 'done';
 				streamingToolSteps = [];
+				streamingText = '';
 				pendingThinking = '';
 				agentRunAbortController = null;
 				return;
@@ -533,6 +527,7 @@
 			loading = false;
 			activeAgentStatus = 'done';
 			streamingToolSteps = [];
+			streamingText = '';
 			pendingThinking = '';
 			agentRunAbortController = null;
 			error = err instanceof Error ? err.message : 'An error occurred';
@@ -587,7 +582,6 @@
 			const payload = (await response.json()) as ChatResponsePayload;
 			activeChatId = payload.chat.id;
 			messages = toUiMessages(payload.messages);
-			await maybeAttachToActiveBackgroundRun(payload.chat.id);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load chat';
 		} finally {
@@ -597,12 +591,11 @@
 
 	export function resetConversation(): void {
 		if (loading) return;
-		clearBackgroundPolling();
-		backgroundRunId = null;
 		activeChatId = null;
 		messages = [];
 		error = null;
 		streamingToolSteps = [];
+		streamingText = '';
 		pendingToolConfirmation = null;
 		editingUserId = null;
 	}
@@ -617,7 +610,6 @@
 
 	$effect(() => {
 		return () => {
-			clearBackgroundPolling();
 			agentRunAbortController?.abort();
 			agentRunAbortController = null;
 		};
@@ -939,7 +931,23 @@
 				</ul>
 			{/if}
 
-			{#if loading && !streamingToolSteps.some((s) => !s.done)}
+			{#if streamingText}
+				<div class="mt-2 border-t border-border/60 pt-4">
+					<div class="prose prose-sm dark:prose-invert max-w-none">
+						<ChatMessageBubble
+							message={{
+								id: '__streaming__',
+								role: 'assistant',
+								content: streamingText,
+								status: 'success'
+							}}
+							busy={true}
+						/>
+					</div>
+				</div>
+			{/if}
+
+			{#if loading && !streamingText && !streamingToolSteps.some((s) => !s.done)}
 				<div class="mt-2 flex w-full border-t border-border/60 pt-4">
 					<div class="flex w-full items-center gap-3 py-2">
 						<div class="flex gap-1.5">
