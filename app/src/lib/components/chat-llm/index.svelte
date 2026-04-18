@@ -38,6 +38,8 @@
 	let messages = $state<ChatMessage[]>([]);
 	let input = $state('');
 	let loading = $state(false);
+	/** True while polling a run that started outside this mount (no live SSE attached). */
+	let remoteRunPending = $state(false);
 	let error = $state<string | null>(null);
 	type ToolActionStep = {
 		label: string;
@@ -63,6 +65,29 @@
 	let pendingScrollMessageId = $state<string | null>(null);
 	/** Aborts in-flight ask/confirm HTTP and SSE stream for the current run. */
 	let agentRunAbortController: AbortController | null = null;
+
+	/** When false, the component has unmounted — ignore late SSE/poll callbacks (don't update state). */
+	const sseGuard = { active: true };
+	let activeRunPollTimer: ReturnType<typeof setInterval> | null = null;
+
+	$effect(() => {
+		sseGuard.active = true;
+		return () => {
+			sseGuard.active = false;
+			if (activeRunPollTimer) {
+				clearInterval(activeRunPollTimer);
+				activeRunPollTimer = null;
+			}
+		};
+	});
+
+	function clearActiveRunPoll() {
+		if (activeRunPollTimer) {
+			clearInterval(activeRunPollTimer);
+			activeRunPollTimer = null;
+		}
+		remoteRunPending = false;
+	}
 
 	// Sync local status to the global agentSessions store so any page can
 	// read live status without polling.
@@ -136,6 +161,7 @@
 	}
 
 	function handleSSEEvent(event: string, data: Record<string, unknown>): void {
+		if (!sseGuard.active) return;
 		switch (event) {
 			case 'run_started': {
 				if (typeof data.chatId === 'string') {
@@ -325,6 +351,7 @@
 		agentRunAbortController?.abort();
 		agentRunAbortController = null;
 		loading = false;
+		clearActiveRunPoll();
 		streamingToolSteps = [];
 		streamingText = '';
 		pendingThinking = '';
@@ -335,6 +362,7 @@
 	$effect(() => {
 		void messages;
 		void loading;
+		void remoteRunPending;
 		void streamingToolSteps;
 		void streamingText;
 		scrollToBottom();
@@ -413,6 +441,7 @@
 			await consumeSSEStream(response, signal);
 
 			// Stream finished
+			if (!sseGuard.active) return;
 			loading = false;
 			streamingToolSteps = [];
 			streamingText = '';
@@ -422,27 +451,31 @@
 			onListRefresh?.();
 		} catch (err) {
 			if (isAbortError(err)) {
+				if (sseGuard.active) {
+					loading = false;
+					activeAgentStatus = 'done';
+					streamingToolSteps = [];
+					streamingText = '';
+					pendingThinking = '';
+				}
+				agentRunAbortController = null;
+				return;
+			}
+			if (sseGuard.active) {
 				loading = false;
 				activeAgentStatus = 'done';
 				streamingToolSteps = [];
 				streamingText = '';
 				pendingThinking = '';
-				agentRunAbortController = null;
-				return;
+				const msg = err instanceof Error ? err.message : 'An error occurred';
+				error = msg;
 			}
-			loading = false;
-			activeAgentStatus = 'done';
-			streamingToolSteps = [];
-			streamingText = '';
-			pendingThinking = '';
 			agentRunAbortController = null;
-			const msg = err instanceof Error ? err.message : 'An error occurred';
-			error = msg;
 		}
 	}
 
 	async function sendMessage() {
-		if (!input.trim() || loading) return;
+		if (!input.trim() || loading || remoteRunPending) return;
 		if (!guardSubmit()) return;
 
 		const text = input.trim();
@@ -463,7 +496,7 @@
 
 	async function submitToolConfirmation(approved: boolean, rememberAutoApprove?: boolean) {
 		const pending = pendingToolConfirmation;
-		if (!pending || loading) return;
+		if (!pending || loading || remoteRunPending) return;
 
 		if (approved && rememberAutoApprove) {
 			addAutoApproveToolName(pending.tool);
@@ -508,6 +541,7 @@
 			// Consume the SSE stream
 			await consumeSSEStream(response, signal);
 
+			if (!sseGuard.active) return;
 			loading = false;
 			streamingToolSteps = [];
 			streamingText = '';
@@ -517,21 +551,25 @@
 			onListRefresh?.();
 		} catch (err) {
 			if (isAbortError(err)) {
+				if (sseGuard.active) {
+					loading = false;
+					activeAgentStatus = 'done';
+					streamingToolSteps = [];
+					streamingText = '';
+					pendingThinking = '';
+				}
+				agentRunAbortController = null;
+				return;
+			}
+			if (sseGuard.active) {
 				loading = false;
 				activeAgentStatus = 'done';
 				streamingToolSteps = [];
 				streamingText = '';
 				pendingThinking = '';
-				agentRunAbortController = null;
-				return;
+				error = err instanceof Error ? err.message : 'An error occurred';
 			}
-			loading = false;
-			activeAgentStatus = 'done';
-			streamingToolSteps = [];
-			streamingText = '';
-			pendingThinking = '';
 			agentRunAbortController = null;
-			error = err instanceof Error ? err.message : 'An error occurred';
 		}
 	}
 
@@ -565,8 +603,95 @@
 		}));
 	}
 
-	export async function loadConversationFromServer(chatId: string): Promise<void> {
-		if (loading) return;
+	async function refreshMessagesFromServer(chatId: string): Promise<void> {
+		if (!apiRoot || !sseGuard.active) return;
+		try {
+			const response = await apiFetch(`${apiRoot}/chats/${encodeURIComponent(chatId)}`);
+			if (!response.ok) return;
+			const payload = (await response.json()) as ChatResponsePayload;
+			if (!sseGuard.active) return;
+			activeChatId = payload.chat.id;
+			messages = toUiMessages(payload.messages);
+		} catch {
+			// ignore
+		}
+	}
+
+	async function pollActiveRunOnce(chatId: string): Promise<void> {
+		if (!apiRoot || !sseGuard.active) return;
+		try {
+			const res = await apiFetch(
+				`${apiRoot}/runs/active?chatId=${encodeURIComponent(chatId)}`
+			);
+			if (!res.ok) return;
+			const data = (await res.json()) as {
+				run: {
+					status: string;
+					pendingToolConfirmation?: PendingToolConfirmation;
+				} | null;
+			};
+			const run = data.run;
+			if (!run || run.status === 'done' || run.status === 'failed') {
+				clearActiveRunPoll();
+				if (!sseGuard.active) return;
+				activeAgentStatus = 'done';
+				await refreshMessagesFromServer(chatId);
+				onListRefresh?.();
+				return;
+			}
+			if (run.status === 'awaiting_confirmation' && run.pendingToolConfirmation) {
+				clearActiveRunPoll();
+				if (!sseGuard.active) return;
+				pendingToolConfirmation = run.pendingToolConfirmation;
+				activeAgentStatus = 'done';
+				return;
+			}
+			await refreshMessagesFromServer(chatId);
+		} catch {
+			// ignore
+		}
+	}
+
+	async function syncActiveRunAfterLoad(chatId: string): Promise<void> {
+		if (!apiRoot || !sseGuard.active) return;
+		clearActiveRunPoll();
+		try {
+			const res = await apiFetch(
+				`${apiRoot}/runs/active?chatId=${encodeURIComponent(chatId)}`
+			);
+			if (!res.ok) return;
+			const data = (await res.json()) as {
+				run: {
+					status: string;
+					pendingToolConfirmation?: PendingToolConfirmation;
+				} | null;
+			};
+			const run = data.run;
+			if (!run || run.status === 'done' || run.status === 'failed') {
+				return;
+			}
+			if (run.status === 'awaiting_confirmation' && run.pendingToolConfirmation) {
+				pendingToolConfirmation = run.pendingToolConfirmation;
+				activeAgentStatus = 'done';
+				return;
+			}
+			remoteRunPending = true;
+			activeAgentStatus = 'working';
+			activeRunPollTimer = setInterval(() => {
+				void pollActiveRunOnce(chatId);
+			}, 2000);
+			await pollActiveRunOnce(chatId);
+		} catch {
+			// ignore
+		}
+	}
+
+	export async function loadConversationFromServer(
+		chatId: string,
+		opts?: { force?: boolean }
+	): Promise<void> {
+		if (!opts?.force && loading) return;
+		clearActiveRunPoll();
 		loadingConversation = true;
 		error = null;
 		streamingToolSteps = [];
@@ -588,10 +713,14 @@
 		} finally {
 			loadingConversation = false;
 		}
+		if (sseGuard.active) {
+			await syncActiveRunAfterLoad(chatId);
+		}
 	}
 
 	export function resetConversation(): void {
 		if (loading) return;
+		clearActiveRunPoll();
 		activeChatId = null;
 		messages = [];
 		error = null;
@@ -602,22 +731,15 @@
 	}
 
 	export async function startWithMessage(msg: string): Promise<void> {
-		if (loading || !msg.trim()) return;
+		if (loading || remoteRunPending || !msg.trim()) return;
 		resetConversation();
 		input = msg.trim();
 		await tick();
 		await sendMessage();
 	}
 
-	$effect(() => {
-		return () => {
-			agentRunAbortController?.abort();
-			agentRunAbortController = null;
-		};
-	});
-
 	async function startEditUser(message: ChatMessage) {
-		if (message.role !== 'user' || loading || !activeChatId) return;
+		if (message.role !== 'user' || loading || remoteRunPending || !activeChatId) return;
 		editingUserId = message.id;
 		editDraft = message.content;
 		await tick();
@@ -630,7 +752,7 @@
 
 	async function commitEdit() {
 		const id = editingUserId;
-		if (!id || !activeChatId || loading) return;
+		if (!id || !activeChatId || loading || remoteRunPending) return;
 		if (!guardSubmit()) return;
 		const text = editDraft.trim();
 		if (!text) return;
@@ -663,7 +785,7 @@
 	}
 
 	async function regenerateAssistant(message: ChatMessage) {
-		if (message.role !== 'assistant' || loading || !activeChatId) return;
+		if (message.role !== 'assistant' || loading || remoteRunPending || !activeChatId) return;
 		if (!guardSubmit()) return;
 
 		const idx = messages.findIndex((m) => m.id === message.id);
@@ -783,7 +905,7 @@
 	}
 
 	async function retryLastFailed(message: ChatMessage) {
-		if (message.role !== 'assistant' || loading || !activeChatId) return;
+		if (message.role !== 'assistant' || loading || remoteRunPending || !activeChatId) return;
 		const idx = messages.findIndex((m) => m.id === message.id);
 		if (idx < 1) return;
 		const userBefore = messages[idx - 1];
@@ -835,7 +957,7 @@
 			onExportMarkdown={exportMarkdown}
 			showStop={loading}
 			onStopAgent={stopAgent}
-			disabled={loadingConversation}
+			disabled={loadingConversation || remoteRunPending}
 		/>
 	</div>
 
@@ -880,7 +1002,7 @@
 										<Button
 											type="button"
 											size="sm"
-											disabled={loading || !editDraft.trim()}
+											disabled={loading || remoteRunPending || !editDraft.trim()}
 											onclick={() => commitEdit()}>Save & resend</Button
 										>
 									</div>
@@ -889,7 +1011,7 @@
 						{:else}
 							<ChatMessageBubble
 								{message}
-								busy={loading}
+								busy={loading || remoteRunPending}
 								onEdit={() => startEditUser(message)}
 								onRegenerate={() => regenerateAssistant(message)}
 								onCopy={() => copyMessage(message)}
@@ -973,7 +1095,7 @@
 				</div>
 			{/if}
 
-			{#if loading && !streamingText && !streamingToolSteps.some((s) => !s.done)}
+			{#if (loading || remoteRunPending) && !streamingText && !streamingToolSteps.some((s) => !s.done)}
 				<div class="mt-2 flex w-full border-t border-border/60 pt-4">
 					<div class="flex w-full items-center gap-3 py-2">
 						<div class="flex gap-1.5">
@@ -1065,7 +1187,7 @@
 	<div class="shrink-0 border-border/60 bg-background px-3 py-3">
 		<ChatComposer
 			bind:value={input}
-			disabled={loading || loadingConversation}
+			disabled={loading || remoteRunPending || loadingConversation}
 			onSubmit={sendMessage}
 			onCommand={handleCommand}
 		/>

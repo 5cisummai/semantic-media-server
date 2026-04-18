@@ -49,62 +49,21 @@
 	async function submitComposer() {
 		const q = composerValue.trim();
 		if (!q || composerSubmitting) return;
-		const ws = workspaceStore.activeId;
-		if (!ws) return;
+		if (!workspaceStore.activeId) return;
 		composerSubmitting = true;
 		composerError = null;
+		// Let /chat own the full brain/ask SSE stream. Starting the request here and
+		// navigating after run_started cancelled the stream, so the chat page never
+		// received text_delta events.
+		const target = new URL(resolve('/chat'), window.location.origin);
+		target.searchParams.set('q', q);
 		try {
-			const res = await fetch(`/api/workspaces/${encodeURIComponent(ws)}/brain/ask`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ question: q, filters: { limit: 16 } })
-			});
-			if (!res.ok) {
-				const err = await res.json().catch(() => ({}));
-				throw new Error((err as { message?: string }).message ?? `Request failed (${res.status})`);
-			}
-			// Extract chatId from the first SSE event (run_started) then navigate immediately.
-			const chatId = await readChatIdFromStream(res);
-			if (!chatId) throw new Error('Failed to get chat ID from stream');
 			// eslint-disable-next-line svelte/no-navigation-without-resolve
-			goto(`/chat?agent=${encodeURIComponent(chatId)}`);
+			await goto(target.pathname + target.search);
 		} catch (err) {
-			composerError = err instanceof Error ? err.message : 'Failed to start chat';
+			composerError = err instanceof Error ? err.message : 'Failed to open chat';
 			composerSubmitting = false;
 		}
-	}
-
-	async function readChatIdFromStream(res: Response): Promise<string | null> {
-		const reader = res.body?.getReader();
-		if (!reader) return null;
-		const decoder = new TextDecoder();
-		let buffer = '';
-		try {
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				buffer += decoder.decode(value, { stream: true });
-				const lines = buffer.split('\n');
-				buffer = lines.pop() ?? '';
-				let currentEvent = '';
-				for (const line of lines) {
-					if (line.startsWith('event: ')) {
-						currentEvent = line.slice(7).trim();
-					} else if (line.startsWith('data: ') && currentEvent === 'run_started') {
-						try {
-							const data = JSON.parse(line.slice(6)) as { chatId?: string };
-							if (data.chatId) {
-								reader.cancel();
-								return data.chatId;
-							}
-						} catch { /* skip */ }
-					}
-				}
-			}
-		} finally {
-			reader.releaseLock();
-		}
-		return null;
 	}
 
 	type QuickAction = { label: string; icon: typeof SparklesIcon };
