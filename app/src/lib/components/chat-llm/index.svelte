@@ -8,6 +8,7 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import ChatMessageBubble from './chat-message-bubble.svelte';
 	import ChatComposer from './chat-composer.svelte';
+	import { SLASH_COMMANDS } from './slash-commands';
 	import ChatToolbar from './chat-toolbar.svelte';
 	import type {
 		ChatMessage,
@@ -799,6 +800,31 @@
 
 		await sendAsk({ question: userBefore.content, regenerate: true });
 	}
+
+	function handleCommand(name: string) {
+		switch (name) {
+			case 'clear':
+			case 'new':
+				resetConversation();
+				break;
+			case 'export':
+				exportJson();
+				break;
+			case 'help': {
+				const lines = SLASH_COMMANDS.map((c) => `- \`/${c.name}\` — ${c.description}`);
+				const helpMessage: ChatMessage = {
+					id: crypto.randomUUID(),
+					role: 'assistant',
+					content: `**Available slash commands**\n\n${lines.join('\n')}`,
+					status: 'success',
+					assistantVariants: [`**Available slash commands**\n\n${lines.join('\n')}`],
+					variantIndex: 0
+				};
+				messages = [...messages, helpMessage];
+				break;
+			}
+		}
+	}
 </script>
 
 <section class="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
@@ -1041,6 +1067,7 @@
 			bind:value={input}
 			disabled={loading || loadingConversation}
 			onSubmit={sendMessage}
+			onCommand={handleCommand}
 		/>
 	</div>
 </section>
