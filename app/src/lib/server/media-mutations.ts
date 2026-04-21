@@ -3,11 +3,7 @@ import { randomUUID } from 'node:crypto';
 import * as path from '$lib/server/paths';
 import { db } from '$lib/server/db';
 import { deleteSemanticEntryByRelativePath } from '$lib/server/semantic';
-import {
-	getMediaRoots,
-	resolveMediaPath,
-	type MediaPathUser
-} from '$lib/server/services/storage';
+import { getMediaRoots, resolveMediaPath, type MediaPathUser } from '$lib/server/services/storage';
 import { moveToTrash } from '$lib/server/trash';
 import { recordAction, FsOperation } from '$lib/server/fs-history';
 

@@ -68,6 +68,9 @@ export async function cleanupExpiredConfirmations(): Promise<number> {
 }
 
 // Proactively clean up expired confirmations every 10 minutes
-setInterval(() => {
-	cleanupExpiredConfirmations().catch(() => {});
-}, 10 * 60 * 1000).unref();
+setInterval(
+	() => {
+		cleanupExpiredConfirmations().catch(() => {});
+	},
+	10 * 60 * 1000
+).unref();

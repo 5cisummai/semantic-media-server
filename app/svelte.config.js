@@ -15,9 +15,9 @@ const config = {
 	},
 	kit: {
 		csrf: {
-			// This app is typically run behind local Docker/proxy setups where host/origin
-			// headers can differ, which can incorrectly block API POSTs (e.g. uploads).
-			checkOrigin: false
+			// Allow requests from the configured public origin (e.g. a reverse proxy) in
+			// addition to the same-origin default. Set PUBLIC_ORIGIN in .env if needed.
+			trustedOrigins: process.env.PUBLIC_ORIGIN ? [process.env.PUBLIC_ORIGIN] : []
 		},
 		// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
 		// If your environment is not supported, or you settled on a specific environment, switch out the adapter.

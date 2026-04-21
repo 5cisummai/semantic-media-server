@@ -104,7 +104,9 @@ export function setAutoApproveSettingEnabled(id: AutoApproveSettingId, enabled: 
 	const tools = toolsForSetting(id);
 	let cur = parseStored();
 	if (id === 'move') {
-		cur = cur.filter((x) => x !== 'move' && !LEGACY_MOVE_NAMES.includes(x as (typeof LEGACY_MOVE_NAMES)[number]));
+		cur = cur.filter(
+			(x) => x !== 'move' && !LEGACY_MOVE_NAMES.includes(x as (typeof LEGACY_MOVE_NAMES)[number])
+		);
 	} else {
 		cur = cur.filter((x) => !tools.includes(x));
 	}

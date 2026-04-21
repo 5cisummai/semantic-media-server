@@ -169,12 +169,7 @@ async function executeStreamingRun(
 	const agent = getMediaAgent();
 
 	// Create DB run record for sidebar status
-	const agentRun = await createAgentRun(
-		appCtx.userId,
-		opts.chatId,
-		opts.kind,
-		appCtx.workspaceId
-	);
+	const agentRun = await createAgentRun(appCtx.userId, opts.chatId, opts.kind, appCtx.workspaceId);
 	if (opts.kind === 'confirm') {
 		await supersedeOtherRunsForChat(appCtx.userId, opts.chatId, agentRun.id);
 	}
@@ -219,12 +214,7 @@ async function executeConfirmStreamingRun(
 ): Promise<void> {
 	const agent = getMediaAgent();
 
-	const agentRun = await createAgentRun(
-		appCtx.userId,
-		opts.chatId,
-		'confirm',
-		appCtx.workspaceId
-	);
+	const agentRun = await createAgentRun(appCtx.userId, opts.chatId, 'confirm', appCtx.workspaceId);
 	await supersedeOtherRunsForChat(appCtx.userId, opts.chatId, agentRun.id);
 	await markRunRunning(agentRun.id);
 
@@ -331,9 +321,8 @@ async function processStreamEvents(
 			"I couldn't complete the request within the tool-iteration limit. Please try a narrower question.";
 
 		const iterations =
-			stream.newItems.filter(
-				(i) => i.type === 'tool_call_item' || i.type === 'message_output_item'
-			).length || 1;
+			stream.newItems.filter((i) => i.type === 'tool_call_item' || i.type === 'message_output_item')
+				.length || 1;
 
 		// Save assistant message to DB
 		const msgId = await saveAssistantMessage(opts.chatId, answer, {
@@ -419,8 +408,7 @@ function handleRunItemEvent(
 			break;
 		}
 		case 'tool_output': {
-			const toolName =
-				'name' in item.rawItem ? String(item.rawItem.name ?? '') : 'unknown';
+			const toolName = 'name' in item.rawItem ? String(item.rawItem.name ?? '') : 'unknown';
 			let resultText = '';
 			if ('output' in item.rawItem && typeof item.rawItem.output === 'string') {
 				resultText =
@@ -445,10 +433,7 @@ function handleRunItemEvent(
 					reasoningText = raw.summary;
 				} else if (Array.isArray(raw.summary)) {
 					reasoningText = raw.summary
-						.filter(
-							(s: unknown) =>
-								typeof s === 'object' && s !== null && 'text' in s
-						)
+						.filter((s: unknown) => typeof s === 'object' && s !== null && 'text' in s)
 						.map((s: unknown) => (s as { text: string }).text)
 						.join('\n');
 				}

@@ -108,7 +108,6 @@
 	title="Workspace Settings"
 	description="Manage members, details, and permissions for the active workspace."
 >
-
 	{#if workspace}
 		<!-- Details Card -->
 		<Card.Root class="card-glass">

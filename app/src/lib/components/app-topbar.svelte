@@ -58,7 +58,7 @@
 			{:else if pageName() || workspaceName}
 				<div class="flex min-w-0 items-center gap-1.5 text-sm">
 					{#if workspaceName}
-						<span class="truncate text-muted-foreground/70 font-mono text-xs">{workspaceName}</span>
+						<span class="truncate font-mono text-xs text-muted-foreground/70">{workspaceName}</span>
 						{#if pageName()}
 							<span class="text-border select-none">/</span>
 						{/if}
@@ -80,7 +80,7 @@
 			<!-- Cmd+K hint -->
 			<button
 				type="button"
-				class="hidden items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-[10px] font-mono text-muted-foreground/60 transition-colors hover:border-primary/30 hover:text-muted-foreground sm:flex"
+				class="hidden items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground/60 transition-colors hover:border-primary/30 hover:text-muted-foreground sm:flex"
 				onclick={() => {
 					const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true });
 					document.dispatchEvent(event);
@@ -91,7 +91,12 @@
 				<span>K</span>
 			</button>
 
-			<Button onclick={toggleMode} variant="ghost" size="icon" class="size-8 text-muted-foreground hover:text-foreground">
+			<Button
+				onclick={toggleMode}
+				variant="ghost"
+				size="icon"
+				class="size-8 text-muted-foreground hover:text-foreground"
+			>
 				<SunIcon
 					class="h-[1.1rem] w-[1.1rem] scale-100 rotate-0 transition-all! dark:scale-0 dark:-rotate-90"
 				/>

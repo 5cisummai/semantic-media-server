@@ -83,9 +83,7 @@
 		fsHistory.refresh();
 	});
 
-	function handleSidebarSelect(
-		event: CustomEvent<{ path: string; kind: 'file' | 'directory' }>
-	) {
+	function handleSidebarSelect(event: CustomEvent<{ path: string; kind: 'file' | 'directory' }>) {
 		const { path, kind } = event.detail;
 		if (kind === 'directory') {
 			if (path) dispatch('pathChange', path);
@@ -203,7 +201,7 @@
 			<ButtonGroup title="Tile size — drag to show more or fewer columns">
 				<div
 					data-slot="button-group-text"
-					class="bg-muted flex min-w-0 max-w-[11rem] items-center gap-2 rounded-md border px-2.5 py-1 text-sm font-medium shadow-xs sm:max-w-[13rem] [&_svg:not([class*='size-'])]:size-4"
+					class="flex max-w-[11rem] min-w-0 items-center gap-2 rounded-md border bg-muted px-2.5 py-1 text-sm font-medium shadow-xs sm:max-w-[13rem] [&_svg:not([class*='size-'])]:size-4"
 				>
 					<LayoutGridIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
 					<input
@@ -211,7 +209,7 @@
 						min="0"
 						max="100"
 						bind:value={gridTileSize}
-						class="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent accent-primary [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted [&::-webkit-slider-thumb]:-mt-1 [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-primary [&::-webkit-slider-thumb]:bg-background [&::-moz-range-track]:h-1 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-muted [&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-primary [&::-moz-range-thumb]:bg-background"
+						class="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent accent-primary [&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-primary [&::-moz-range-thumb]:bg-background [&::-moz-range-track]:h-1 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-muted [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-muted [&::-webkit-slider-thumb]:-mt-1 [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-primary [&::-webkit-slider-thumb]:bg-background"
 						aria-label="File grid tile size"
 					/>
 				</div>

@@ -1,36 +1,21 @@
-# Create repo-root .venv with Python 3.11 and embedding-host/requirements.txt (same as setup.sh)
+param(
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]]$SetupJinaArgs
+)
+
 $ErrorActionPreference = 'Stop'
 
 $Root = $PSScriptRoot
 Set-Location $Root
 
-$Req = Join-Path $Root 'embedding-host\requirements.txt'
-if (-not (Test-Path -LiteralPath $Req)) {
-  throw "Missing requirements file: $Req"
+if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+  throw 'pnpm not found on PATH. Install pnpm and try again.'
 }
 
-$Venv = Join-Path $Root '.venv'
-$PyInVenv = Join-Path $Venv 'Scripts\python.exe'
+Write-Host '[1/2] Installing app dependencies...'
+& pnpm --dir (Join-Path $Root 'app') install
 
-function New-Venv311 {
-  $py = Get-Command py -ErrorAction SilentlyContinue
-  if ($py) {
-    & py -3.11 -m venv $Venv
-    return
-  }
-  $py311 = Get-Command python3.11 -ErrorAction SilentlyContinue
-  if ($py311) {
-    & $py311.Source -m venv $Venv
-    return
-  }
-  throw 'Python 3.11 not found. Install Python 3.11 and ensure `py -3.11` or `python3.11` is on PATH.'
-}
+Write-Host '[2/2] Running Jina model setup...'
+& (Join-Path $Root 'setup-jina.sh') @SetupJinaArgs
 
-if (-not (Test-Path -LiteralPath $PyInVenv)) {
-  New-Venv311
-}
-
-& $PyInVenv -m pip install --upgrade pip
-& $PyInVenv -m pip install -r $Req
-
-Write-Host "Done. Virtual environment: $Venv"
+Write-Host 'Setup complete.'

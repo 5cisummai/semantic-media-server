@@ -233,11 +233,10 @@ export async function redoUserAction(userId: string, workspaceId?: string | null
 			}
 			case FsOperation.COPY: {
 				const p = payload as CopyPayload;
-				// The source is gone — we can't re-copy. Mark done and bail gracefully.
-				// In practice, if the source still exists, redo means re-copy from payload source.
-				// Since we only stored destination, re-copy is not possible. Skip silently.
-				// (This is expected behavior — Google Docs also sometimes can't redo copies.)
-				break;
+				// Source bytes are gone — we only stored the destination, not the source.
+				// Redo is not possible. Return null so the caller can report this clearly.
+				void p;
+				return null;
 			}
 			case FsOperation.MKDIR: {
 				const p = payload as MkdirPayload;
@@ -247,8 +246,8 @@ export async function redoUserAction(userId: string, workspaceId?: string | null
 				break;
 			}
 			case FsOperation.UPLOAD: {
-				// Can't re-upload without the file bytes. Skip.
-				break;
+				// File bytes are gone — redo is not possible. Return null to report clearly.
+				return null;
 			}
 		}
 	} catch (err) {

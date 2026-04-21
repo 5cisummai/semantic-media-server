@@ -279,8 +279,6 @@ async function toMediaFileEntry(relativePath: string): Promise<MediaEntry | null
 	};
 }
 
-
-
 /** Walk roots and yield files one at a time to avoid loading all into memory. */
 async function* streamAllFiles(): AsyncGenerator<MediaEntry> {
 	const roots = getMediaRoots();

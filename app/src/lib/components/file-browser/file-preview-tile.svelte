@@ -70,9 +70,8 @@
 		return FileIcon;
 	});
 
-	/** Thumbnail preview only for raster/visual media; folders/docs/audio use icons only. */
+	/** Thumbnail preview only for images; everything else uses icons to keep grid memory low. */
 	const showImagePreview = $derived(isImage && !!mediaUrl);
-	const showVideoPreview = $derived(isVideo && !!mediaUrl);
 </script>
 
 <article class={`group flex min-h-0 min-w-0 flex-col gap-1 ${className}`}>
@@ -88,25 +87,12 @@
 				decoding="async"
 			/>
 		</div>
-	{:else if showVideoPreview}
-		<div
-			class="relative min-h-0 flex-1 overflow-hidden rounded-lg bg-muted/25 transition-colors group-hover:bg-muted/40"
-		>
-			<video
-				src={mediaUrl}
-				class="h-full w-full object-cover"
-				muted
-				preload="metadata"
-				playsinline
-				controls={false}
-			></video>
-		</div>
 	{:else}
 		<div
 			class="relative min-h-0 flex-1 overflow-hidden rounded-lg text-muted-foreground transition-colors group-hover:text-foreground"
 			aria-hidden="true"
 		>
-			<TileIcon class="absolute left-2 top-2 block size-[calc(100%-1rem)]" />
+			<TileIcon class="absolute top-2 left-2 block size-[calc(100%-1rem)]" />
 		</div>
 	{/if}
 

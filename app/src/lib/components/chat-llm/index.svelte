@@ -117,10 +117,7 @@
 	// SSE stream parser — reads a fetch Response body as SSE events
 	// ---------------------------------------------------------------------------
 
-	async function consumeSSEStream(
-		response: Response,
-		signal: AbortSignal
-	): Promise<void> {
+	async function consumeSSEStream(response: Response, signal: AbortSignal): Promise<void> {
 		const reader = response.body?.getReader();
 		if (!reader) throw new Error('No response body');
 
@@ -156,7 +153,7 @@
 				}
 			}
 		} finally {
-			reader.releaseLock();
+			await reader.cancel();
 		}
 	}
 
@@ -375,7 +372,6 @@
 		scrollMessageIntoView(id);
 		pendingScrollMessageId = null;
 	});
-
 
 	function guardSubmit(): boolean {
 		const now = Date.now();
@@ -620,9 +616,7 @@
 	async function pollActiveRunOnce(chatId: string): Promise<void> {
 		if (!apiRoot || !sseGuard.active) return;
 		try {
-			const res = await apiFetch(
-				`${apiRoot}/runs/active?chatId=${encodeURIComponent(chatId)}`
-			);
+			const res = await apiFetch(`${apiRoot}/runs/active?chatId=${encodeURIComponent(chatId)}`);
 			if (!res.ok) return;
 			const data = (await res.json()) as {
 				run: {
@@ -656,9 +650,7 @@
 		if (!apiRoot || !sseGuard.active) return;
 		clearActiveRunPoll();
 		try {
-			const res = await apiFetch(
-				`${apiRoot}/runs/active?chatId=${encodeURIComponent(chatId)}`
-			);
+			const res = await apiFetch(`${apiRoot}/runs/active?chatId=${encodeURIComponent(chatId)}`);
 			if (!res.ok) return;
 			const data = (await res.json()) as {
 				run: {

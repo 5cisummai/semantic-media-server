@@ -27,9 +27,7 @@
 			const isDirectory =
 				node.type === 'file'
 					? false
-					: node.type === 'directory' ||
-						node.type === 'folder' ||
-						node.children != null;
+					: node.type === 'directory' || node.type === 'folder' || node.children != null;
 			return {
 				id: path,
 				name,
@@ -48,6 +46,9 @@
 			name: entry.name,
 			path: entry.path,
 			type: entry.type,
+			mediaType: entry.mediaType,
+			mimeType: entry.mimeType,
+			modified: entry.modified,
 			children: entry.type === 'directory' ? [] : undefined
 		}))
 	);

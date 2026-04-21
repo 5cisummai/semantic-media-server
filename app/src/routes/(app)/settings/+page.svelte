@@ -222,31 +222,32 @@
 >
 	<Tabs.Root bind:value={settingsTab}>
 		<Tabs.List class="grid w-full max-w-2xl grid-cols-2 gap-1 sm:grid-cols-4">
-				<Tabs.Trigger value="storage" class="gap-2">
-					<FolderIcon class="size-4" />
-					Storage
-				</Tabs.Trigger>
-				<Tabs.Trigger value="assistant" class="gap-2">
-					<SparklesIcon class="size-4" />
-					Assistant
-				</Tabs.Trigger>
-				<Tabs.Trigger value="users" class="gap-2">
-					<UsersIcon class="size-4" />
-					Users
-				</Tabs.Trigger>
-				<Tabs.Trigger value="info" class="gap-2">
-					<InfoIcon class="size-4" />
-					Info
-				</Tabs.Trigger>
-			</Tabs.List>
+			<Tabs.Trigger value="storage" class="gap-2">
+				<FolderIcon class="size-4" />
+				Storage
+			</Tabs.Trigger>
+			<Tabs.Trigger value="assistant" class="gap-2">
+				<SparklesIcon class="size-4" />
+				Assistant
+			</Tabs.Trigger>
+			<Tabs.Trigger value="users" class="gap-2">
+				<UsersIcon class="size-4" />
+				Users
+			</Tabs.Trigger>
+			<Tabs.Trigger value="info" class="gap-2">
+				<InfoIcon class="size-4" />
+				Info
+			</Tabs.Trigger>
+		</Tabs.List>
 
-			<Tabs.Content value="storage" class="space-y-4">
-				{#if drives.length === 0}
-					<p class="text-sm text-muted-foreground">No storage drives configured.</p>
-				{:else}
-					<div class="space-y-4">
-						{#each drives as drive}
-							<Card.Root class="card-glass"><Card.Content class="p-4">
+		<Tabs.Content value="storage" class="space-y-4">
+			{#if drives.length === 0}
+				<p class="text-sm text-muted-foreground">No storage drives configured.</p>
+			{:else}
+				<div class="space-y-4">
+					{#each drives as drive}
+						<Card.Root class="card-glass"
+							><Card.Content class="p-4">
 								<div class="mb-2 flex items-center justify-between">
 									<div class="flex items-center gap-2">
 										<HardDriveIcon class="size-5 text-muted-foreground" />
@@ -269,12 +270,14 @@
 								{:else if !drive.available}
 									<p class="text-sm text-muted-foreground">Drive is not accessible.</p>
 								{/if}
-							</Card.Content></Card.Root>
-						{/each}
-					</div>
-				{/if}
+							</Card.Content></Card.Root
+						>
+					{/each}
+				</div>
+			{/if}
 
-				<Card.Root class="card-glass bg-muted/30"><Card.Content class="p-4">
+			<Card.Root class="card-glass bg-muted/30"
+				><Card.Content class="p-4">
 					<h3 class="mb-2 text-sm font-medium">Adding More Drives</h3>
 					<p class="text-sm text-muted-foreground">
 						To add more storage drives, edit the <code class="rounded bg-muted px-1 text-xs"
@@ -286,15 +289,17 @@
 					<code class="mt-2 block rounded bg-muted p-2 text-xs"
 						>MEDIA_ROOTS=/path/to/drive1,/path/to/drive2</code
 					>
-				</Card.Content></Card.Root>
+				</Card.Content></Card.Root
+			>
 
-				<Card.Root class="card-glass"><Card.Content class="p-4">
+			<Card.Root class="card-glass"
+				><Card.Content class="p-4">
 					<h3 class="mb-2 text-sm font-medium">Search &amp; AI chat indexing</h3>
 					<p class="mb-3 text-sm text-muted-foreground">
-						<strong class="font-medium text-foreground">Semantic index</strong> powers Smart Search and
-						the assistant’s file search for the <strong class="font-medium text-foreground"
-							>workspace selected in the header</strong
-						>. Rebuilding it rescans files into that workspace’s vector index.
+						<strong class="font-medium text-foreground">Semantic index</strong> powers Smart Search
+						and the assistant’s file search for the
+						<strong class="font-medium text-foreground">workspace selected in the header</strong>.
+						Rebuilding it rescans files into that workspace’s vector index.
 						<strong class="font-medium text-foreground">Ingest</strong> reads text and PDFs and stores
 						chunks for chat context (separate from semantic search).
 					</p>
@@ -339,11 +344,13 @@
 							Only administrators can reindex or ingest content for search and chat.
 						</p>
 					{/if}
-				</Card.Content></Card.Root>
-			</Tabs.Content>
+				</Card.Content></Card.Root
+			>
+		</Tabs.Content>
 
-			<Tabs.Content value="assistant" class="space-y-4">
-				<Card.Root class="card-glass"><Card.Content class="p-4">
+		<Tabs.Content value="assistant" class="space-y-4">
+			<Card.Root class="card-glass"
+				><Card.Content class="p-4">
 					<h3 class="mb-1 text-sm font-medium">AI assistant — file actions</h3>
 					<p class="mb-4 text-sm text-muted-foreground">
 						When the chat assistant wants to change files (delete, move, copy, or create folders),
@@ -373,128 +380,132 @@
 							</li>
 						{/each}
 					</ul>
-				</Card.Content></Card.Root>
-			</Tabs.Content>
+				</Card.Content></Card.Root
+			>
+		</Tabs.Content>
 
-			<Tabs.Content value="users" class="space-y-4">
-				<Card.Root class="card-glass"><Card.Content class="space-y-4 p-4">
+		<Tabs.Content value="users" class="space-y-4">
+			<Card.Root class="card-glass"
+				><Card.Content class="space-y-4 p-4">
 					<h3 class="text-sm font-medium">Server accounts vs workspace members</h3>
 					<p class="text-sm text-muted-foreground">
-						<strong class="font-medium text-foreground">Users (this tab)</strong> are login accounts for
-						this app: who can sign in, who is a <em>server</em> administrator (settings, storage,
+						<strong class="font-medium text-foreground">Users (this tab)</strong> are login accounts
+						for this app: who can sign in, who is a <em>server</em> administrator (settings, storage,
 						reindex, approving signups), and account status.
 					</p>
 					<p class="text-sm text-muted-foreground">
 						<strong class="font-medium text-foreground">Workspace members</strong> are managed under
 						<a href="/workspace" class="font-medium text-primary underline underline-offset-4"
 							>Workspace settings</a
-						>: who may access each workspace’s chats and files, and their role <em>inside that
-							workspace</em> (Admin, Member, Viewer). Someone can be a server user without being in a
-						workspace, or belong to several workspaces with different roles.
+						>: who may access each workspace’s chats and files, and their role
+						<em>inside that workspace</em> (Admin, Member, Viewer). Someone can be a server user without
+						being in a workspace, or belong to several workspaces with different roles.
 					</p>
-				</Card.Content></Card.Root>
+				</Card.Content></Card.Root
+			>
 
-				{#if isAdmin}
-					<div class="rounded-md border">
-						<Table.Root>
-							<Table.Header>
+			{#if isAdmin}
+				<div class="rounded-md border">
+					<Table.Root>
+						<Table.Header>
+							<Table.Row>
+								<Table.Head>Username</Table.Head>
+								<Table.Head>Display name</Table.Head>
+								<Table.Head>Server role</Table.Head>
+								<Table.Head>Status</Table.Head>
+								<Table.Head class="w-[220px] text-right">Actions</Table.Head>
+							</Table.Row>
+						</Table.Header>
+						<Table.Body>
+							{#each users as user}
 								<Table.Row>
-									<Table.Head>Username</Table.Head>
-									<Table.Head>Display name</Table.Head>
-									<Table.Head>Server role</Table.Head>
-									<Table.Head>Status</Table.Head>
-									<Table.Head class="w-[220px] text-right">Actions</Table.Head>
-								</Table.Row>
-							</Table.Header>
-							<Table.Body>
-								{#each users as user}
-									<Table.Row>
-										<Table.Cell class="font-mono text-xs">{user.username}</Table.Cell>
-										<Table.Cell>{user.displayName}</Table.Cell>
-										<Table.Cell>
-											{#if user.id === currentUserId || (user.role === 'ADMIN' && !canDemoteServerAdmin(user))}
-												<Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>
-													{user.role}
-												</Badge>
-											{:else}
-												<Select.Root
-													type="single"
-													value={user.role}
-													onValueChange={(val) => {
-														if (val === 'ADMIN' || val === 'USER') updateAppRole(user.id, val);
-													}}
-												>
-													<Select.Trigger class="w-32" size="sm">
-														{user.role}
-													</Select.Trigger>
-													<Select.Content>
-														<Select.Item value="ADMIN">ADMIN</Select.Item>
-														<Select.Item value="USER" disabled={!canDemoteServerAdmin(user)}
-															>USER</Select.Item
-														>
-													</Select.Content>
-												</Select.Root>
-											{/if}
-										</Table.Cell>
-										<Table.Cell>
-											<Badge variant={user.approved ? 'outline' : 'secondary'}>
-												{user.approved ? 'Active' : 'Pending'}
+									<Table.Cell class="font-mono text-xs">{user.username}</Table.Cell>
+									<Table.Cell>{user.displayName}</Table.Cell>
+									<Table.Cell>
+										{#if user.id === currentUserId || (user.role === 'ADMIN' && !canDemoteServerAdmin(user))}
+											<Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'}>
+												{user.role}
 											</Badge>
-										</Table.Cell>
-										<Table.Cell class="text-right">
-											<Button
-												variant="outline"
-												size="sm"
-												class="border-destructive/30 text-destructive hover:bg-destructive/10"
-												disabled={!canDeactivate(user)}
-												onclick={() => openDeactivateDialog(user.id)}
+										{:else}
+											<Select.Root
+												type="single"
+												value={user.role}
+												onValueChange={(val) => {
+													if (val === 'ADMIN' || val === 'USER') updateAppRole(user.id, val);
+												}}
 											>
-												Deactivate
-											</Button>
-										</Table.Cell>
-									</Table.Row>
-								{/each}
-							</Table.Body>
-						</Table.Root>
-					</div>
-
-					<Dialog.Root
-						bind:open={deactivateDialogOpen}
-						onOpenChange={(open) => {
-							if (!open) deactivateTargetId = null;
-						}}
-					>
-						<Dialog.Content>
-							<Dialog.Header>
-								<Dialog.Title>Deactivate account?</Dialog.Title>
-								<Dialog.Description>
-									{#if deactivateTarget}
-										This signs out <span class="font-medium text-foreground"
-											>{deactivateTarget.displayName}</span
+												<Select.Trigger class="w-32" size="sm">
+													{user.role}
+												</Select.Trigger>
+												<Select.Content>
+													<Select.Item value="ADMIN">ADMIN</Select.Item>
+													<Select.Item value="USER" disabled={!canDemoteServerAdmin(user)}
+														>USER</Select.Item
+													>
+												</Select.Content>
+											</Select.Root>
+										{/if}
+									</Table.Cell>
+									<Table.Cell>
+										<Badge variant={user.approved ? 'outline' : 'secondary'}>
+											{user.approved ? 'Active' : 'Pending'}
+										</Badge>
+									</Table.Cell>
+									<Table.Cell class="text-right">
+										<Button
+											variant="outline"
+											size="sm"
+											class="border-destructive/30 text-destructive hover:bg-destructive/10"
+											disabled={!canDeactivate(user)}
+											onclick={() => openDeactivateDialog(user.id)}
 										>
-										(<span class="font-mono text-xs">@{deactivateTarget.username}</span>) and blocks
-										further sign-ins for this server account.
-									{/if}
-								</Dialog.Description>
-							</Dialog.Header>
-							<Dialog.Footer>
-								<Button
-									variant="outline"
-									onclick={() => {
-										deactivateDialogOpen = false;
-										deactivateTargetId = null;
-									}}>Cancel</Button
-								>
-								<Button variant="destructive" onclick={deactivateAccount}>Deactivate</Button>
-							</Dialog.Footer>
-						</Dialog.Content>
-					</Dialog.Root>
+											Deactivate
+										</Button>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
+				</div>
 
-					{#if pendingUsers.length > 0}
-						<div class="space-y-3">
-							<h3 class="text-sm font-medium">Pending signups</h3>
-							{#each pendingUsers as pending}
-								<Card.Root class="card-glass"><Card.Content class="flex items-center justify-between p-4">
+				<Dialog.Root
+					bind:open={deactivateDialogOpen}
+					onOpenChange={(open) => {
+						if (!open) deactivateTargetId = null;
+					}}
+				>
+					<Dialog.Content>
+						<Dialog.Header>
+							<Dialog.Title>Deactivate account?</Dialog.Title>
+							<Dialog.Description>
+								{#if deactivateTarget}
+									This signs out <span class="font-medium text-foreground"
+										>{deactivateTarget.displayName}</span
+									>
+									(<span class="font-mono text-xs">@{deactivateTarget.username}</span>) and blocks
+									further sign-ins for this server account.
+								{/if}
+							</Dialog.Description>
+						</Dialog.Header>
+						<Dialog.Footer>
+							<Button
+								variant="outline"
+								onclick={() => {
+									deactivateDialogOpen = false;
+									deactivateTargetId = null;
+								}}>Cancel</Button
+							>
+							<Button variant="destructive" onclick={deactivateAccount}>Deactivate</Button>
+						</Dialog.Footer>
+					</Dialog.Content>
+				</Dialog.Root>
+
+				{#if pendingUsers.length > 0}
+					<div class="space-y-3">
+						<h3 class="text-sm font-medium">Pending signups</h3>
+						{#each pendingUsers as pending}
+							<Card.Root class="card-glass"
+								><Card.Content class="flex items-center justify-between p-4">
 									<div>
 										<p class="font-medium">{pending.displayName}</p>
 										<p class="text-sm text-muted-foreground">@{pending.username}</p>
@@ -519,34 +530,39 @@
 											Reject
 										</Button>
 									</div>
-								</Card.Content></Card.Root>
-							{/each}
-						</div>
-					{/if}
-				{:else}
-					<p class="text-sm text-muted-foreground">
-						Only server administrators can view and change accounts here. Workspace membership is
-						managed in
-						<a href="/workspace" class="font-medium text-primary underline underline-offset-4"
-							>Workspace settings</a
-						>.
-					</p>
+								</Card.Content></Card.Root
+							>
+						{/each}
+					</div>
 				{/if}
-			</Tabs.Content>
+			{:else}
+				<p class="text-sm text-muted-foreground">
+					Only server administrators can view and change accounts here. Workspace membership is
+					managed in
+					<a href="/workspace" class="font-medium text-primary underline underline-offset-4"
+						>Workspace settings</a
+					>.
+				</p>
+			{/if}
+		</Tabs.Content>
 
-			<Tabs.Content value="info" class="space-y-4">
-				<Card.Root class="card-glass"><Card.Content class="p-4">
+		<Tabs.Content value="info" class="space-y-4">
+			<Card.Root class="card-glass"
+				><Card.Content class="p-4">
 					<h3 class="mb-2 text-sm font-medium">Version</h3>
 					<p class="text-sm text-muted-foreground">Vectraspace Media Server v0.1.0</p>
-				</Card.Content></Card.Root>
+				</Card.Content></Card.Root
+			>
 
-				<Card.Root class="card-glass"><Card.Content class="p-4">
+			<Card.Root class="card-glass"
+				><Card.Content class="p-4">
 					<h3 class="mb-2 text-sm font-medium">Legal</h3>
 					<p class="text-sm text-muted-foreground">
 						This software is provided as-is for personal use. Use at your own risk. Ensure you have
 						proper backups of your media files.
 					</p>
-				</Card.Content></Card.Root>
-			</Tabs.Content>
-		</Tabs.Root>
+				</Card.Content></Card.Root
+			>
+		</Tabs.Content>
+	</Tabs.Root>
 </PageShell>

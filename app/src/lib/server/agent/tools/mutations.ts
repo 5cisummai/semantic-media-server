@@ -57,7 +57,9 @@ export const deleteFileTool = tool({
 	parameters: z.object({
 		path: z
 			.string()
-			.describe('Media path: rootIndex/… (e.g. "0/photos/old.jpg") or "<username>/…" in your personal folder.')
+			.describe(
+				'Media path: rootIndex/… (e.g. "0/photos/old.jpg") or "<username>/…" in your personal folder.'
+			)
 	}),
 	needsApproval: makeNeedsApproval('delete_file'),
 	execute: makeMutatingExecute('delete_file', async ({ path: relPath }, ctx) => {
@@ -123,16 +125,26 @@ export const moveTool = tool({
 			return 'Error: move: use either source_path+destination_path OR source_paths+destination_directory, not both.';
 		}
 		if (batch) {
-			return moveManyMediaPaths(args.source_paths!, args.destination_directory!, {
-				userId: ctx.userId,
-				isAdmin: ctx.isAdmin
-			}, { userId: ctx.userId, workspaceId: ctx.workspaceId });
+			return moveManyMediaPaths(
+				args.source_paths!,
+				args.destination_directory!,
+				{
+					userId: ctx.userId,
+					isAdmin: ctx.isAdmin
+				},
+				{ userId: ctx.userId, workspaceId: ctx.workspaceId }
+			);
 		}
 		if (single) {
-			return moveMediaPath(args.source_path!, args.destination_path!, {
-				userId: ctx.userId,
-				isAdmin: ctx.isAdmin
-			}, { userId: ctx.userId, workspaceId: ctx.workspaceId });
+			return moveMediaPath(
+				args.source_path!,
+				args.destination_path!,
+				{
+					userId: ctx.userId,
+					isAdmin: ctx.isAdmin
+				},
+				{ userId: ctx.userId, workspaceId: ctx.workspaceId }
+			);
 		}
 		return 'Error: move requires either "source_path" and "destination_path", or non-empty "source_paths" and "destination_directory".';
 	})

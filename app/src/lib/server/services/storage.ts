@@ -206,7 +206,18 @@ export async function resolveMediaPath(
 	const cleaned = path.normalize(relativePath.replace(/^[/\\]+/, ''));
 	if (!cleaned) return null;
 
+	// Targeted lookup: personal folder virtual root is always the username (post-migration).
+	// For legacy rows (folder.path contains '/'), the prefix is the first two segments.
+	const firstSegment = cleaned.split('/')[0];
+	const legacyPrefix = cleaned.split('/').slice(0, 2).join('/');
+
 	const folders = await db.personalFolder.findMany({
+		where: {
+			OR: [
+				{ user: { username: firstSegment } },
+				...(legacyPrefix.includes('/') ? [{ path: legacyPrefix }] : [])
+			]
+		},
 		include: { user: { select: { username: true } } }
 	});
 
@@ -423,25 +434,37 @@ export async function listDirectory(
 	});
 }
 
+const TREE_MAX_DEPTH = 6;
+const TREE_MAX_ENTRIES = 2000;
+
 export async function listDirectoryTree(
 	relativePath: string,
-	viewer?: MediaPathUser | null
+	viewer?: MediaPathUser | null,
+	_depth = 0,
+	_counter = { count: 0 }
 ): Promise<ClientMediaEntry[]> {
+	if (_depth >= TREE_MAX_DEPTH) return [];
+
 	const entries = await listDirectory(relativePath, viewer);
 
-	return await Promise.all(
-		entries.map(async (entry) => {
-			const { fullPath, ...safeEntry } = entry;
-			if (entry.type === 'directory') {
-				return {
-					...safeEntry,
-					children: await listDirectoryTree(entry.path, viewer)
-				};
-			}
+	const result: ClientMediaEntry[] = [];
+	for (const entry of entries) {
+		if (_counter.count >= TREE_MAX_ENTRIES) break;
+		_counter.count++;
 
-			return safeEntry;
-		})
-	);
+		const { fullPath, ...safeEntry } = entry;
+		void fullPath;
+		if (entry.type === 'directory') {
+			result.push({
+				...safeEntry,
+				children: await listDirectoryTree(entry.path, viewer, _depth + 1, _counter)
+			});
+		} else {
+			result.push(safeEntry);
+		}
+	}
+
+	return result;
 }
 
 export function formatSize(bytes: number): string {

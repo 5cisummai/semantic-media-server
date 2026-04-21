@@ -90,7 +90,7 @@
 <div class="relative mx-auto w-full max-w-3xl">
 	{#if suggestions.length > 0}
 		<div
-			class="absolute bottom-full left-0 right-0 z-50 mb-1.5 overflow-hidden rounded-xl border border-border bg-popover shadow-md"
+			class="absolute right-0 bottom-full left-0 z-50 mb-1.5 overflow-hidden rounded-xl border border-border bg-popover shadow-md"
 			role="listbox"
 			aria-label="Slash commands"
 		>
@@ -99,7 +99,10 @@
 					type="button"
 					role="option"
 					aria-selected={i === selectedIndex}
-					class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted/60 {i === selectedIndex ? 'bg-muted/60' : ''}"
+					class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted/60 {i ===
+					selectedIndex
+						? 'bg-muted/60'
+						: ''}"
 					onmousedown={(e) => {
 						e.preventDefault();
 						selectCommand(cmd);

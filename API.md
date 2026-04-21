@@ -627,14 +627,14 @@ Also removes matching `uploadedFile` rows and attempts semantic index cleanup fo
 
 Tool definitions live under `app/src/lib/server/agent/tools/`. The LLM may call tools such as:
 
-| Tool                          | Purpose                                                             |
-| ----------------------------- | ------------------------------------------------------------------- |
-| `search`                      | Semantic search over the filename/metadata index (`semanticSearch`) |
-| `list_directory`              | List folder contents                                                |
-| `get_file_info`               | File or directory metadata                                          |
-| `read_file`                   | Read text-oriented file content where supported                     |
-| `search_by_metadata`          | Filter vector DB by metadata without a semantic query               |
-| `delete_file`, `move`, …      | Mutating tools — may require UI confirmation (`needsApproval`)      |
+| Tool                     | Purpose                                                             |
+| ------------------------ | ------------------------------------------------------------------- |
+| `search`                 | Semantic search over the filename/metadata index (`semanticSearch`) |
+| `list_directory`         | List folder contents                                                |
+| `get_file_info`          | File or directory metadata                                          |
+| `read_file`              | Read text-oriented file content where supported                     |
+| `search_by_metadata`     | Filter vector DB by metadata without a semantic query               |
+| `delete_file`, `move`, … | Mutating tools — may require UI confirmation (`needsApproval`)      |
 
 Clients do not invoke these directly; they are used inside `POST /api/workspaces/{workspaceId}/brain/ask`.
 

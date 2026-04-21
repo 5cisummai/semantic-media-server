@@ -1,4 +1,10 @@
-export { requireAuth, requireAdmin, requirePathAccess, filterPersonalEntries, type AuthenticatedUser } from './auth-guard';
+export {
+	requireAuth,
+	requireAdmin,
+	requirePathAccess,
+	filterPersonalEntries,
+	type AuthenticatedUser
+} from './auth-guard';
 export { parseBody } from './validation';
 export {
 	approveUserSchema,

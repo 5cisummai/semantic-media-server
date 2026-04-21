@@ -1,9 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import {
-	ensurePersonalFolderMigration,
-	virtualRootForFolder
-} from '$lib/server/services/storage';
+import { ensurePersonalFolderMigration, virtualRootForFolder } from '$lib/server/services/storage';
 import type { UserRole } from '@prisma/client';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -90,26 +87,35 @@ export async function requirePathAccess(
 		return;
 	}
 
-	const personalFolders = await db.personalFolder.findMany({
-		include: { user: { select: { username: true } } }
-	});
-
-	for (const folder of personalFolders) {
-		const folderPath = virtualRootForFolder(folder);
-		const isInside =
-			normalized === folderPath || normalized.startsWith(`${folderPath}/`);
-
-		if (isInside && folder.userId !== user.id) {
-			throw error(403, 'Access denied');
+	// Targeted lookup by first path segment (post-migration virtual root == username)
+	const firstSegment = normalized.split('/')[0];
+	if (firstSegment) {
+		const folder = await db.personalFolder.findFirst({
+			where: { user: { username: firstSegment } },
+			include: { user: { select: { username: true } } }
+		});
+		if (folder) {
+			const folderPath = virtualRootForFolder(folder);
+			const isInside = normalized === folderPath || normalized.startsWith(`${folderPath}/`);
+			if (isInside && folder.userId !== user.id) {
+				throw error(403, 'Access denied');
+			}
 		}
+	}
 
-		// Legacy DB paths (`0/<name>`) before migration
-		if (!folder.path.includes('/')) continue;
-		const legacyPath = folder.path;
-		const insideLegacy =
-			normalized === legacyPath || normalized.startsWith(`${legacyPath}/`);
-		if (insideLegacy && folder.userId !== user.id) {
-			throw error(403, 'Access denied');
+	// Legacy DB paths (`0/<name>`) — check by exact path prefix
+	const legacyPrefix = normalized.split('/').slice(0, 2).join('/');
+	if (legacyPrefix.includes('/')) {
+		const legacyFolder = await db.personalFolder.findFirst({
+			where: { path: legacyPrefix },
+			include: { user: { select: { username: true } } }
+		});
+		if (legacyFolder && legacyFolder.userId !== user.id) {
+			const insideLegacy =
+				normalized === legacyFolder.path || normalized.startsWith(`${legacyFolder.path}/`);
+			if (insideLegacy) {
+				throw error(403, 'Access denied');
+			}
 		}
 	}
 }
@@ -126,16 +132,17 @@ export async function filterPersonalEntries<T extends { path: string }>(
 
 	if (user.role === 'ADMIN') return entries;
 
-	const personalFolders = await db.personalFolder.findMany({
+	// Only load folders belonging to *other* users — avoids returning own folder in blocked list
+	const otherFolders = await db.personalFolder.findMany({
+		where: { userId: { not: user.id } },
 		include: { user: { select: { username: true } } }
 	});
-	const blockedPrefixes = personalFolders
-		.filter((f) => f.userId !== user.id)
-		.flatMap((f) => {
-			const roots = [virtualRootForFolder(f)];
-			if (f.path.includes('/')) roots.push(f.path);
-			return roots;
-		});
+
+	const blockedPrefixes = otherFolders.flatMap((f) => {
+		const roots = [virtualRootForFolder(f)];
+		if (f.path.includes('/')) roots.push(f.path);
+		return roots;
+	});
 
 	return entries.filter((entry) => {
 		const p = entry.path.replace(/^\/+/, '');

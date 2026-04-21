@@ -63,7 +63,9 @@
 		"@openai/agents": "^0.8.3",
 		"@prisma/adapter-pg": "^7.7.0",
 		"@prisma/client": "^7.7.0",
+		"@types/busboy": "^1.5.4",
 		"argon2": "0.44.0",
+		"busboy": "^1.6.0",
 		"dompurify": "^3.3.3",
 		"jsonwebtoken": "^9.0.3",
 		"marked": "^18.0.0",
@@ -71,12 +73,14 @@
 		"openai": "^6.34.0",
 		"pdf-parse": "^2.4.5",
 		"pg": "^8.20.0",
+		"sharp": "^0.34.5",
 		"zod": "^4.3.6"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [
 			"@prisma/engines",
-			"prisma"
+			"prisma",
+			"sharp"
 		]
 	}
 }

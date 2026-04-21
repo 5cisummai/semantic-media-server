@@ -6,6 +6,7 @@ import { resolveMediaPath } from '$lib/server/services/storage';
 import { deleteSemanticEntryByRelativePath } from '$lib/server/semantic';
 import { db } from '$lib/server/db';
 import { requireAuth, requirePathAccess, audit } from '$lib/server/api';
+import { requireMembership } from '$lib/server/services/workspace';
 import { moveToTrash } from '$lib/server/trash';
 import { recordAction, FsOperation } from '$lib/server/fs-history';
 import type { RequestHandler } from './$types';
@@ -80,8 +81,17 @@ export const DELETE: RequestHandler = async ({ params, locals, request }) => {
 
 	const semanticPaths = await collectNestedFilePaths(resolved.fullPath, relativePath);
 
-	// Workspace context from header (set by frontend when workspace is active)
-	const workspaceId = request.headers.get('X-Workspace-Id') ?? undefined;
+	// Workspace context from header — verify membership before stamping history
+	const rawWorkspaceId = request.headers.get('X-Workspace-Id') ?? null;
+	let workspaceId: string | null = null;
+	if (rawWorkspaceId) {
+		try {
+			await requireMembership(rawWorkspaceId, user.id, 'MEMBER');
+			workspaceId = rawWorkspaceId;
+		} catch {
+			// Not a member — ignore the header
+		}
+	}
 	const trashKey = randomUUID();
 
 	try {

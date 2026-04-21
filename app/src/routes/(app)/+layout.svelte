@@ -34,9 +34,12 @@
 
 <div class="h-screen w-full overflow-hidden bg-background text-foreground">
 	<Sidebar.Provider class="h-full" bind:open={sidebarOpen}>
-		<AppSidebar username={data.user?.username ?? 'User'} workspacesEnabled={data.workspacesEnabled} />
+		<AppSidebar
+			username={data.user?.username ?? 'User'}
+			workspacesEnabled={data.workspacesEnabled}
+		/>
 
-		<div class="flex h-full w-full flex-col">
+		<div class="flex h-full min-w-0 flex-1 flex-col">
 			<AppTopbar>
 				{#snippet left()}
 					<div class="flex items-center gap-2">

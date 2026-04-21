@@ -57,7 +57,9 @@
 			class="overflow-hidden rounded-xl border border-border/80 bg-popover p-0 shadow-2xl sm:max-w-lg"
 			showCloseButton={false}
 		>
-			<Command.Root class="[&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:tracking-[0.12em] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:text-primary/60">
+			<Command.Root
+				class="[&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:tracking-[0.12em] [&_[cmdk-group-heading]]:text-primary/60 [&_[cmdk-group-heading]]:uppercase"
+			>
 				<Command.Input placeholder="Type a command or search…" class="h-12 border-0 text-sm" />
 				<Command.List class="max-h-72">
 					<Command.Empty class="py-6 text-center text-sm text-muted-foreground">
@@ -83,7 +85,10 @@
 					<Command.Group heading="Theme">
 						<Command.Item
 							value="Toggle light dark theme"
-							onSelect={() => { open = false; toggleMode(); }}
+							onSelect={() => {
+								open = false;
+								toggleMode();
+							}}
 							class="gap-3"
 						>
 							<SunIcon class="size-4 text-muted-foreground dark:hidden" />

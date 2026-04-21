@@ -4,25 +4,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-REQ="${ROOT}/embedding-host/requirements.txt"
-if [[ ! -f "$REQ" ]]; then
-  echo "Missing requirements file: $REQ" >&2
+if ! command -v pnpm &>/dev/null; then
+  echo "pnpm not found on PATH. Install pnpm and try again." >&2
   exit 1
 fi
 
-if ! command -v python3.11 &>/dev/null; then
-  echo "python3.11 not found on PATH. Install Python 3.11 and try again." >&2
-  exit 1
-fi
+echo "[1/2] Installing app dependencies..."
+pnpm --dir "$ROOT/app" install
 
-VENV="${ROOT}/.venv"
-if [[ ! -x "${VENV}/bin/python" ]]; then
-  python3.11 -m venv "${VENV}"
-fi
+echo "[2/2] Running Jina model setup..."
+"$ROOT/setup-jina.sh" "$@"
 
-# shellcheck source=/dev/null
-source "${VENV}/bin/activate"
-python -m pip install --upgrade pip
-pip install -r "${REQ}"
-
-echo "Done. Virtual environment: ${VENV}"
+echo "Setup complete."

@@ -1,4 +1,4 @@
-import { json, error } from '@sveltejs/kit';
+import { json, error, isHttpError } from '@sveltejs/kit';
 import { requireAuth, requirePathAccess, filterPersonalEntries } from '$lib/server/api';
 import { listDirectory } from '$lib/server/services/storage';
 import type { RequestHandler } from './$types';
@@ -19,6 +19,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		});
 		return json(safe);
 	} catch (err) {
+		if (isHttpError(err)) throw err;
 		const message = err instanceof Error ? err.message : 'Unknown error';
 		throw error(500, message);
 	}

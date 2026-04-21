@@ -244,7 +244,9 @@ export async function ingestDirectoryByRootIndex(
 
 	for (const [i, filePath] of allFiles.entries()) {
 		if (i > 0 && i % 50 === 0) {
-			console.log(`[ingest] Progress: ${i}/${allFiles.length} files (${counters.filesIndexed} indexed, ${counters.errors.length} errors)`);
+			console.log(
+				`[ingest] Progress: ${i}/${allFiles.length} files (${counters.filesIndexed} indexed, ${counters.errors.length} errors)`
+			);
 		}
 		try {
 			const result = await ingestOneFile(filePath, workspaceId);

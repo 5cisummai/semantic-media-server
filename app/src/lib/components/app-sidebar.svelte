@@ -60,8 +60,10 @@
 		username = 'User',
 		workspacesEnabled = true,
 		...restProps
-	}: ComponentProps<typeof Sidebar.Root> & { username?: string; workspacesEnabled?: boolean } =
-		$props();
+	}: ComponentProps<typeof Sidebar.Root> & {
+		username?: string;
+		workspacesEnabled?: boolean;
+	} = $props();
 
 	const visibleNavItems = $derived(
 		navMain.filter((item) => !('workspaceOnly' in item && item.workspaceOnly && !workspacesEnabled))

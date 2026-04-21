@@ -115,7 +115,11 @@
 	);
 </script>
 
-<PageShell eyebrow="Discovery" title="Smart Search" description="Semantic search finds files by meaning across your workspace index—describe what you're looking for, not just the filename.">
+<PageShell
+	eyebrow="Discovery"
+	title="Smart Search"
+	description="Semantic search finds files by meaning across your workspace index—describe what you're looking for, not just the filename."
+>
 	{#snippet headerActions()}
 		{#if !workspaceMissing && data.isAdmin}
 			<WorkspaceSemanticReindex isAdmin={data.isAdmin} density="compact" />
@@ -158,7 +162,9 @@
 			Select a workspace in the header to search your library.
 		</p>
 	{:else if error}
-		<p class="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+		<p
+			class="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+		>
 			{error}
 		</p>
 	{/if}

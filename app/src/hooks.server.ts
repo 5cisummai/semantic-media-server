@@ -79,7 +79,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 				select: { id: true, role: true, approved: true, deletedAt: true }
 			});
 			if (row) {
-				cached = { role: row.role, approved: row.approved, deletedAt: row.deletedAt, cachedAt: Date.now() };
+				cached = {
+					role: row.role,
+					approved: row.approved,
+					deletedAt: row.deletedAt,
+					cachedAt: Date.now()
+				};
 				userValidationCache.set(userId, cached);
 			}
 		}

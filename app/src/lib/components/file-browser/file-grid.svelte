@@ -4,6 +4,9 @@
 		name: string;
 		path: string;
 		type: 'file' | 'directory';
+		mediaType?: 'video' | 'audio' | 'image' | 'document' | 'other';
+		mimeType?: string;
+		modified?: string;
 		children?: FileEntry[];
 	};
 </script>
@@ -71,6 +74,13 @@
 			.join('/');
 	}
 
+	function buildThumbnailUrl(entry: FlatEntry): string {
+		const encodedPath = encodeMediaPath(entry.path);
+		const version = entry.modified ? encodeURIComponent(entry.modified) : '';
+		const query = version ? `?w=320&h=320&fit=cover&v=${version}` : '?w=320&h=320&fit=cover';
+		return `/api/thumb/${encodedPath}${query}`;
+	}
+
 	async function readErrorMessage(res: Response): Promise<string> {
 		const text = await res.text();
 		try {
@@ -99,9 +109,7 @@
 
 		if (e.shiftKey) {
 			const anchorIdx =
-				rangeAnchorPath != null
-					? items.findIndex((i) => i.path === rangeAnchorPath)
-					: idx;
+				rangeAnchorPath != null ? items.findIndex((i) => i.path === rangeAnchorPath) : idx;
 			const start = anchorIdx >= 0 ? anchorIdx : idx;
 			const lo = Math.min(start, idx);
 			const hi = Math.max(start, idx);
@@ -324,15 +332,17 @@
 	async function onUploadPicked(event: Event) {
 		const input = event.target as HTMLInputElement;
 		// Clone files to preserve them before resetting input
-		const fileArray = input.multiple 
-			? Array.from(input.files || []) 
-			: input.files ? [input.files[0]] : [];
-		
+		const fileArray = input.multiple
+			? Array.from(input.files || [])
+			: input.files
+				? [input.files[0]]
+				: [];
+
 		console.log('[upload] onUploadPicked called', { fileCount: fileArray.length, currentPath });
-		
+
 		// Reset input to allow re-selecting same files
 		input.value = '';
-		
+
 		if (!fileArray.length) {
 			toast('No files selected');
 			return;
@@ -343,7 +353,7 @@
 		}
 
 		const fileList = new DataTransfer();
-		fileArray.forEach(f => fileList.items.add(f));
+		fileArray.forEach((f) => fileList.items.add(f));
 		uploadManager.addFiles(currentPath, fileList.files, workspaceStore.activeId);
 		uploadManager.uploadAll();
 		fsHistory.refresh();
@@ -447,51 +457,54 @@
 			</div>
 
 			<div class="min-h-0 flex-1 overflow-auto">
-			<ul
-				class="grid gap-3"
-				role="listbox"
-				aria-multiselectable="true"
-				style="grid-template-columns: repeat(auto-fill, minmax(min(100%, {gridMinTilePx}px), 1fr));"
-			>
-				{#each items as item (item.path)}
-					<li role="presentation">
-						<ContextMenu.Root>
-							<ContextMenu.Trigger>
-								<Button
-									type="button"
-									variant="ghost"
-									role="option"
-									aria-selected={selectedPaths.includes(item.path)}
-									class="aspect-square h-auto w-full flex-col items-stretch justify-start gap-1 whitespace-normal rounded-xl p-1 text-center {selectedPaths.includes(item.path)
-										? 'bg-muted'
-										: ''}"
-									onclick={(e) => onTileClick(item, e)}
-									onkeydown={(e) => onTileKeydown(item, e)}
-								>
-									<FilePreviewTile
-										class="h-full w-full min-h-0"
-										item={{
-											name: item.name,
-											path: item.path,
-											url: `/api/stream/${item.path}`,
-											type: item.type
-										}}
-									/>
-								</Button>
-							</ContextMenu.Trigger>
-							<ContextMenu.Content class="w-48">
-								<ContextMenu.Item onclick={() => activateEntry(item)}>Open</ContextMenu.Item>
-								<ContextMenu.Item onclick={renameNotSupported}>Rename</ContextMenu.Item>
-								<ContextMenu.Item onclick={() => copyPath(item.path)}>Copy path</ContextMenu.Item>
-								<ContextMenu.Separator />
-								<ContextMenu.Item variant="destructive" onclick={() => requestDelete(item)}>
-									Delete
-								</ContextMenu.Item>
-							</ContextMenu.Content>
-						</ContextMenu.Root>
-					</li>
-				{/each}
-			</ul>
+				<ul
+					class="grid gap-3"
+					role="listbox"
+					aria-multiselectable="true"
+					style="grid-template-columns: repeat(auto-fill, minmax(min(100%, {gridMinTilePx}px), 1fr));"
+				>
+					{#each items as item (item.path)}
+						<li role="presentation">
+							<ContextMenu.Root>
+								<ContextMenu.Trigger>
+									<Button
+										type="button"
+										variant="ghost"
+										role="option"
+										aria-selected={selectedPaths.includes(item.path)}
+										class="aspect-square h-auto w-full flex-col items-stretch justify-start gap-1 rounded-xl p-1 text-center whitespace-normal {selectedPaths.includes(
+											item.path
+										)
+											? 'bg-muted'
+											: ''}"
+										onclick={(e) => onTileClick(item, e)}
+										onkeydown={(e) => onTileKeydown(item, e)}
+									>
+										<FilePreviewTile
+											class="h-full min-h-0 w-full"
+											item={{
+												name: item.name,
+												path: item.path,
+												url: buildThumbnailUrl(item),
+												type: item.type,
+												mimeType: item.mimeType
+											}}
+										/>
+									</Button>
+								</ContextMenu.Trigger>
+								<ContextMenu.Content class="w-48">
+									<ContextMenu.Item onclick={() => activateEntry(item)}>Open</ContextMenu.Item>
+									<ContextMenu.Item onclick={renameNotSupported}>Rename</ContextMenu.Item>
+									<ContextMenu.Item onclick={() => copyPath(item.path)}>Copy path</ContextMenu.Item>
+									<ContextMenu.Separator />
+									<ContextMenu.Item variant="destructive" onclick={() => requestDelete(item)}>
+										Delete
+									</ContextMenu.Item>
+								</ContextMenu.Content>
+							</ContextMenu.Root>
+						</li>
+					{/each}
+				</ul>
 			</div>
 		</div>
 	</ContextMenu.Trigger>

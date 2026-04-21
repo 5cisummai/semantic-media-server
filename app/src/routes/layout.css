@@ -19,18 +19,18 @@
 	--secondary: oklch(0.94 0.005 270);
 	--secondary-foreground: oklch(0.25 0.01 270);
 	--muted: oklch(0.94 0.005 270);
-	--muted-foreground: oklch(0.50 0.02 268);
+	--muted-foreground: oklch(0.5 0.02 268);
 	--accent: oklch(0.94 0.005 270);
 	--accent-foreground: oklch(0.25 0.01 270);
 	--destructive: oklch(0.577 0.245 27.325);
 	--border: oklch(0.88 0.006 268);
 	--input: oklch(0.88 0.006 268);
-	--ring: oklch(0.60 0.15 278);
+	--ring: oklch(0.6 0.15 278);
 	--chart-1: oklch(0.65 0.22 278);
 	--chart-2: oklch(0.55 0.19 255);
-	--chart-3: oklch(0.50 0.22 220);
+	--chart-3: oklch(0.5 0.22 220);
 	--chart-4: oklch(0.62 0.18 300);
-	--chart-5: oklch(0.58 0.20 315);
+	--chart-5: oklch(0.58 0.2 315);
 	--radius: 0.625rem;
 	--sidebar: oklch(0.965 0.004 268);
 	--sidebar-foreground: oklch(0.12 0.012 270);
@@ -39,7 +39,7 @@
 	--sidebar-accent: oklch(0.92 0.006 268);
 	--sidebar-accent-foreground: oklch(0.25 0.01 270);
 	--sidebar-border: oklch(0.88 0.006 268);
-	--sidebar-ring: oklch(0.60 0.15 278);
+	--sidebar-ring: oklch(0.6 0.15 278);
 }
 
 /* ─── Dark mode (primary aesthetic) ─────────────────────────────────────── */
@@ -58,15 +58,15 @@
 	--muted-foreground: oklch(0.52 0.018 270);
 	--accent: oklch(0.19 0.008 268);
 	--accent-foreground: oklch(0.88 0.005 268);
-	--destructive: oklch(0.65 0.20 22);
+	--destructive: oklch(0.65 0.2 22);
 	--border: oklch(1 0 0 / 0.08);
-	--input: oklch(1 0 0 / 0.10);
+	--input: oklch(1 0 0 / 0.1);
 	--ring: oklch(0.68 0.22 278 / 0.5);
 	--chart-1: oklch(0.68 0.22 278);
-	--chart-2: oklch(0.60 0.20 255);
+	--chart-2: oklch(0.6 0.2 255);
 	--chart-3: oklch(0.55 0.22 220);
 	--chart-4: oklch(0.65 0.18 300);
-	--chart-5: oklch(0.60 0.20 315);
+	--chart-5: oklch(0.6 0.2 315);
 	--sidebar: oklch(0.115 0.008 268);
 	--sidebar-foreground: oklch(0.92 0.004 268);
 	--sidebar-primary: oklch(0.68 0.22 278);
@@ -158,7 +158,7 @@
 
 	/* Page eyebrow label — monospaced, tracked uppercase, accent-tinted */
 	.section-eyebrow {
-		@apply font-mono text-[11px] font-medium tracking-[0.15em] uppercase text-primary/70;
+		@apply font-mono text-[11px] font-medium tracking-[0.15em] text-primary/70 uppercase;
 	}
 
 	/* Page title — large, tight tracking */
@@ -173,7 +173,7 @@
 
 	/* Section label — used above content groups */
 	.section-label {
-		@apply font-mono text-[11px] font-medium tracking-[0.12em] uppercase text-primary/60;
+		@apply font-mono text-[11px] font-medium tracking-[0.12em] text-primary/60 uppercase;
 	}
 
 	/* Staggered entry animation classes */
@@ -184,13 +184,13 @@
 		animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
 	}
 	.animate-page-enter-delay-2 {
-		animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.10s both;
+		animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
 	}
 	.animate-page-enter-delay-3 {
 		animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
 	}
 	.animate-page-enter-delay-4 {
-		animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.20s both;
+		animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
 	}
 
 	/* Glass card — frosted, dark mode primary surface */
@@ -206,7 +206,7 @@
 	/* Global button active press feedback */
 	button:not([disabled]):not([data-no-press]),
 	[role='button']:not([disabled]):not([data-no-press]) {
-		@apply active:scale-[0.97] transition-transform duration-75;
+		@apply transition-transform duration-75 active:scale-[0.97];
 	}
 
 	/* Subtle grain overlay — add to any bg div for depth */

@@ -46,12 +46,14 @@
 		{@render children()}
 	</div>
 {:else}
-	<div class={cn('min-h-full w-full overflow-x-hidden bg-background text-foreground', className)}>
-		<div class={cn(
-			containerClass ? BASE_PADDING : 'page-content',
-			'flex flex-col gap-8',
-			containerClass
-		)}>
+	<div class={cn('min-h-full w-full bg-background text-foreground', className)}>
+		<div
+			class={cn(
+				containerClass ? BASE_PADDING : 'page-content',
+				'flex flex-col gap-8',
+				containerClass
+			)}
+		>
 			{#if hasHeader}
 				<header class="animate-page-enter flex min-w-0 items-start justify-between gap-4">
 					<div class="flex flex-col gap-1.5">
