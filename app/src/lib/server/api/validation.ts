@@ -117,6 +117,79 @@ export const ingestDirectorySchema = z
 	})
 	.strict();
 
+const mediaTypeSchema = z.enum(['video', 'audio', 'image', 'document', 'other']);
+
+export const askFiltersSchema = z
+	.object({
+		mediaType: mediaTypeSchema.optional(),
+		rootIndex: z
+			.number()
+			.refine(Number.isInteger, { message: 'rootIndex must be an integer' })
+			.refine((value) => value >= 0, { message: 'rootIndex must be non-negative' })
+			.optional(),
+		fileIds: z.array(z.string().min(1, 'fileIds entries must not be empty')).optional(),
+		limit: z
+			.number()
+			.refine(Number.isInteger, { message: 'limit must be an integer' })
+			.refine((value) => value > 0, { message: 'limit must be greater than 0' })
+			.optional(),
+		minScore: z.number().finite('minScore must be a finite number').optional()
+	})
+	.strict();
+
+export const askRequestSchema = z
+	.object({
+		question: z.string().trim().optional(),
+		chatId: cuidSchema.optional(),
+		filters: askFiltersSchema.optional(),
+		regenerate: z.boolean().optional(),
+		maxHistoryMessages: z
+			.number()
+			.finite('maxHistoryMessages must be a finite number')
+			.refine((value) => value > 0, { message: 'maxHistoryMessages must be greater than 0' })
+			.optional(),
+		autoApproveToolNames: z.unknown().optional()
+	})
+	.strict();
+
+export const confirmToolSchema = z
+	.object({
+		pendingId: cuidSchema,
+		approved: z.boolean(),
+		chatId: cuidSchema.optional(),
+		autoApproveToolNames: z.unknown().optional()
+	})
+	.strict();
+
+export const createChatSchema = z
+	.object({
+		title: z.string().optional()
+	})
+	.strict();
+
+export const truncateChatSchema = z
+	.object({
+		fromMessageId: cuidSchema
+	})
+	.strict();
+
+export const workspaceSelectionSchema = z
+	.object({
+		workspaceId: z
+			.union([cuidSchema, z.literal('')])
+			.nullable()
+			.optional()
+	})
+	.strict();
+
+export const uploadIndexSchema = z
+	.object({
+		paths: z
+			.array(z.string().min(1, 'paths entries must not be empty'))
+			.min(1, 'No upload paths provided')
+	})
+	.strict();
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -138,6 +211,39 @@ export async function parseBody<T extends z.ZodType>(
 	const result = schema.safeParse(raw);
 	if (!result.success) {
 		// Return first validation error — safe to expose (schema-level, no internals)
+		const firstIssue = result.error.issues[0];
+		throw error(400, firstIssue?.message ?? 'Validation failed');
+	}
+
+	return result.data;
+}
+
+/**
+ * Parse and validate an optional JSON request body.
+ * Empty bodies return null; invalid JSON or invalid shapes still fail with 400.
+ */
+export async function parseOptionalBody<T extends z.ZodType>(
+	request: Request,
+	schema: T
+): Promise<z.infer<T> | null> {
+	const rawText = await request.text();
+	if (!rawText.trim()) {
+		return null;
+	}
+
+	let raw: unknown;
+	try {
+		raw = JSON.parse(rawText) as unknown;
+	} catch {
+		throw error(400, 'Invalid JSON body');
+	}
+
+	if (raw === null) {
+		return null;
+	}
+
+	const result = schema.safeParse(raw);
+	if (!result.success) {
 		const firstIssue = result.error.issues[0];
 		throw error(400, firstIssue?.message ?? 'Validation failed');
 	}

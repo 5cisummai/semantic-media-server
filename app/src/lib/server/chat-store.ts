@@ -9,21 +9,6 @@ import { dedupeChatsById } from '$lib/utils.js';
 const UNTITLED_CHAT = 'New chat';
 const MAX_TITLE_LENGTH = 120;
 
-type ChatSessionRow = {
-	id: string;
-	title: string;
-	createdAt: Date;
-	updatedAt: Date;
-	_count: { messages: number };
-};
-
-type ChatSessionBaseRow = {
-	id: string;
-	title: string;
-	createdAt: Date;
-	updatedAt: Date;
-};
-
 type ChatMessageRow = {
 	id: string;
 	role: 'USER' | 'ASSISTANT';

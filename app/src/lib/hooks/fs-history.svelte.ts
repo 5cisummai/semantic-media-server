@@ -28,11 +28,12 @@ class FsHistoryStore {
 	}
 
 	async refresh() {
-		const params = new URLSearchParams({ limit: '20' });
-		if (this.workspaceId) params.set('workspaceId', this.workspaceId);
+		const query = this.workspaceId
+			? `limit=20&workspaceId=${encodeURIComponent(this.workspaceId)}`
+			: 'limit=20';
 
 		try {
-			const res = await apiFetch(`/api/history?${params.toString()}`);
+			const res = await apiFetch(`/api/history?${query}`);
 			if (!res.ok) return;
 			const data: HistoryAction[] = await res.json();
 			this.actions = data;

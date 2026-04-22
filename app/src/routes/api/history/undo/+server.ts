@@ -1,21 +1,17 @@
 import { json, error } from '@sveltejs/kit';
-import { requireAuth } from '$lib/server/api';
-import { requireMembership } from '$lib/server/services/workspace';
+import { parseBody, requireAuth, workspaceSelectionSchema } from '$lib/server/api';
 import { undoUserAction } from '$lib/server/fs-history';
+import { requireOptionalWorkspaceAccess } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ locals, request }) => {
 	const user = await requireAuth(locals);
-	const body = await request.json().catch(() => ({}));
-	const workspaceId = typeof body.workspaceId === 'string' ? body.workspaceId : null;
-
-	if (workspaceId) {
-		try {
-			await requireMembership(workspaceId, user.id, 'MEMBER');
-		} catch {
-			throw error(403, 'Access denied');
-		}
-	}
+	const body = await parseBody(request, workspaceSelectionSchema);
+	const workspaceId = await requireOptionalWorkspaceAccess(
+		body.workspaceId || null,
+		user.id,
+		'MEMBER'
+	);
 
 	let action;
 	try {

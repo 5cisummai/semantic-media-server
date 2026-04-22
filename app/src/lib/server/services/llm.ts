@@ -1,5 +1,4 @@
 import { env } from '$env/dynamic/private';
-import { randomUUID } from 'node:crypto';
 
 export type LlmProvider = 'ollama' | 'openai';
 

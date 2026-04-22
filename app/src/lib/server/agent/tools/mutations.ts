@@ -41,7 +41,8 @@ function makeMutatingExecute<T extends Record<string, unknown>>(
 }
 
 function makeNeedsApproval(toolName: string) {
-	return async (runContext: RunContext<unknown>, _input: unknown): Promise<boolean> => {
+	return async (runContext: RunContext<unknown>, input: unknown): Promise<boolean> => {
+		void input;
 		const ctx = runContext.context as AgentAppContext;
 		return !shouldAutoApproveTool(ctx.autoApproveToolNames, toolName);
 	};

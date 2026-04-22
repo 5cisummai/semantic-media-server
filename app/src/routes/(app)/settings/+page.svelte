@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import { Button } from '$lib/components/ui/button';
@@ -245,7 +246,7 @@
 				<p class="text-sm text-muted-foreground">No storage drives configured.</p>
 			{:else}
 				<div class="space-y-4">
-					{#each drives as drive}
+					{#each drives as drive (drive.index)}
 						<Card.Root class="card-glass"
 							><Card.Content class="p-4">
 								<div class="mb-2 flex items-center justify-between">
@@ -296,8 +297,8 @@
 				><Card.Content class="p-4">
 					<h3 class="mb-2 text-sm font-medium">Search &amp; AI chat indexing</h3>
 					<p class="mb-3 text-sm text-muted-foreground">
-						<strong class="font-medium text-foreground">Semantic index</strong> powers the assistant’s
-						file search for the
+						<strong class="font-medium text-foreground">Semantic index</strong> powers the
+						assistant’s file search for the
 						<strong class="font-medium text-foreground">workspace selected in the header</strong>.
 						Rebuilding it rescans files into that workspace’s vector index.
 						<strong class="font-medium text-foreground">Ingest</strong> reads text and PDFs and stores
@@ -318,7 +319,7 @@
 								Full pass on one drive; large libraries can take a while.
 							</p>
 							<div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-								{#each drives as drive}
+								{#each drives as drive (drive.index)}
 									{#if drive.available}
 										<Button
 											variant="outline"
@@ -395,8 +396,9 @@
 					</p>
 					<p class="text-sm text-muted-foreground">
 						<strong class="font-medium text-foreground">Workspace members</strong> are managed under
-						<a href="/workspace" class="font-medium text-primary underline underline-offset-4"
-							>Workspace settings</a
+						<a
+							href={resolve('/workspace')}
+							class="font-medium text-primary underline underline-offset-4">Workspace settings</a
 						>: who may access each workspace’s chats and files, and their role
 						<em>inside that workspace</em> (Admin, Member, Viewer). Someone can be a server user without
 						being in a workspace, or belong to several workspaces with different roles.
@@ -417,7 +419,7 @@
 							</Table.Row>
 						</Table.Header>
 						<Table.Body>
-							{#each users as user}
+							{#each users as user (user.id)}
 								<Table.Row>
 									<Table.Cell class="font-mono text-xs">{user.username}</Table.Cell>
 									<Table.Cell>{user.displayName}</Table.Cell>
@@ -503,7 +505,7 @@
 				{#if pendingUsers.length > 0}
 					<div class="space-y-3">
 						<h3 class="text-sm font-medium">Pending signups</h3>
-						{#each pendingUsers as pending}
+						{#each pendingUsers as pending (pending.id)}
 							<Card.Root class="card-glass"
 								><Card.Content class="flex items-center justify-between p-4">
 									<div>
@@ -539,8 +541,9 @@
 				<p class="text-sm text-muted-foreground">
 					Only server administrators can view and change accounts here. Workspace membership is
 					managed in
-					<a href="/workspace" class="font-medium text-primary underline underline-offset-4"
-						>Workspace settings</a
+					<a
+						href={resolve('/workspace')}
+						class="font-medium text-primary underline underline-offset-4">Workspace settings</a
 					>.
 				</p>
 			{/if}

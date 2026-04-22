@@ -6,9 +6,9 @@ import { isPersonalFolderRoot, resolveMediaPath } from '$lib/server/services/sto
 import { deleteSemanticEntryByRelativePath } from '$lib/server/semantic';
 import { db } from '$lib/server/db';
 import { requireAuth, requirePathAccess, audit } from '$lib/server/api';
-import { requireMembership } from '$lib/server/services/workspace';
 import { moveToTrash } from '$lib/server/trash';
 import { recordAction, FsOperation } from '$lib/server/fs-history';
+import { resolveOptionalWorkspaceContext } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
 
 async function collectNestedFilePaths(fullPath: string, relativePath: string): Promise<string[]> {
@@ -81,16 +81,11 @@ export const DELETE: RequestHandler = async ({ params, locals, request }) => {
 	const semanticPaths = await collectNestedFilePaths(resolved.fullPath, relativePath);
 
 	// Workspace context from header — verify membership before stamping history
-	const rawWorkspaceId = request.headers.get('X-Workspace-Id') ?? null;
-	let workspaceId: string | null = null;
-	if (rawWorkspaceId) {
-		try {
-			await requireMembership(rawWorkspaceId, user.id, 'MEMBER');
-			workspaceId = rawWorkspaceId;
-		} catch {
-			// Not a member — ignore the header
-		}
-	}
+	const workspaceId = await resolveOptionalWorkspaceContext(
+		request.headers.get('X-Workspace-Id'),
+		user.id,
+		'MEMBER'
+	);
 	const trashKey = randomUUID();
 
 	try {

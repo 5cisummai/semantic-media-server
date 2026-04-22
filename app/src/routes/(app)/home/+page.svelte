@@ -266,8 +266,13 @@
 						agentSessions.getStatus(agent.id) === 'working' || agent.status === 'working'}
 					{@const isDone = !isActive && agent.status === 'done'}
 					<a
-						href="/chat?agent={encodeURIComponent(agent.id)}"
+						href={resolve('/chat')}
 						class="card-glass card-glass-hover flex w-52 shrink-0 snap-start flex-col gap-2.5 rounded-xl p-3.5 transition-all"
+						onclick={(event) => {
+							event.preventDefault();
+							// eslint-disable-next-line svelte/no-navigation-without-resolve
+							void goto(`${resolve('/chat')}?agent=${encodeURIComponent(agent.id)}`);
+						}}
 					>
 						<div class="flex items-start justify-between gap-2">
 							<p class="line-clamp-2 text-xs leading-tight font-medium text-foreground">

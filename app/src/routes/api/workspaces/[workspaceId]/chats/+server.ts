@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
+import { createChatSchema, parseOptionalBody } from '$lib/server/api';
 import { titleForNewChat, withChatStatuses } from '$lib/server/chat-store';
 import { requireWorkspaceAccess } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
@@ -35,14 +36,10 @@ export const GET: RequestHandler = async (event) => {
 	});
 };
 
-interface CreateChatBody {
-	title?: string;
-}
-
 export const POST: RequestHandler = async (event) => {
 	const { workspaceId, userId } = await requireWorkspaceAccess(event, 'MEMBER');
 
-	const body = (await event.request.json().catch(() => null)) as CreateChatBody | null;
+	const body = await parseOptionalBody(event.request, createChatSchema);
 	const title = titleForNewChat(body?.title);
 
 	const chat = await db.chatSession.create({

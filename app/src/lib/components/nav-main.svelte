@@ -1,13 +1,16 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { page } from '$app/state';
+
+	type AppNavHref = '/home' | '/browse' | '/chat' | '/workspace' | '/settings';
 
 	let {
 		items
 	}: {
 		items: {
 			title: string;
-			href?: string;
+			href?: AppNavHref;
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			icon: any;
 		}[];
@@ -21,11 +24,11 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton
 					tooltipContent={item.title}
-					isActive={item.href !== undefined && page.url.pathname === item.href}
+					isActive={item.href !== undefined && page.url.pathname === resolve(item.href)}
 				>
 					{#snippet child({ props })}
 						{#if item.href}
-							<a href={item.href} {...props}>
+							<a href={resolve(item.href)} {...props}>
 								<item.icon />
 								<span>{item.title}</span>
 							</a>

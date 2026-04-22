@@ -127,7 +127,11 @@ async function readDiskCache(cacheKey: string, cacheRootPath: string): Promise<B
 	}
 }
 
-async function writeDiskCache(cacheKey: string, cacheRootPath: string, buffer: Buffer): Promise<void> {
+async function writeDiskCache(
+	cacheKey: string,
+	cacheRootPath: string,
+	buffer: Buffer
+): Promise<void> {
 	if (diskCacheMaxBytes <= 0) return;
 	await ensureDiskCacheDir(cacheRootPath);
 

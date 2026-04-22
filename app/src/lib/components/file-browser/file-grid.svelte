@@ -85,7 +85,9 @@
 		return () => ro.disconnect();
 	});
 
-	const gridColumnCount = $derived(Math.max(1, Math.floor(viewportW / Math.max(gridMinTilePx, 88))));
+	const gridColumnCount = $derived(
+		Math.max(1, Math.floor(viewportW / Math.max(gridMinTilePx, 88)))
+	);
 	const cellWidth = $derived(Math.max(40, viewportW / gridColumnCount));
 	const cellHeight = $derived(Math.ceil(cellWidth + 48));
 	const gridHeight = $derived(Math.max(200, viewportH));
@@ -530,7 +532,9 @@
 										<ContextMenu.Content class="w-48">
 											<ContextMenu.Item onclick={() => activateEntry(item)}>Open</ContextMenu.Item>
 											<ContextMenu.Item onclick={renameNotSupported}>Rename</ContextMenu.Item>
-											<ContextMenu.Item onclick={() => copyPath(item.path)}>Copy path</ContextMenu.Item>
+											<ContextMenu.Item onclick={() => copyPath(item.path)}
+												>Copy path</ContextMenu.Item
+											>
 											<ContextMenu.Separator />
 											<ContextMenu.Item variant="destructive" onclick={() => requestDelete(item)}>
 												Delete

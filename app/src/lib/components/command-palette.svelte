@@ -5,7 +5,6 @@
 	import { onMount } from 'svelte';
 	import HomeIcon from '@lucide/svelte/icons/home';
 	import FilesIcon from '@lucide/svelte/icons/files';
-	import BotIcon from '@lucide/svelte/icons/bot';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import FolderCogIcon from '@lucide/svelte/icons/folder-cog';
 	import PlusIcon from '@lucide/svelte/icons/plus';

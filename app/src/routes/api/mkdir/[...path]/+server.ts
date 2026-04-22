@@ -1,10 +1,9 @@
 import { json, error } from '@sveltejs/kit';
 import fs from 'node:fs/promises';
-import * as path from '$lib/server/paths';
 import { requireAuth, requirePathAccess } from '$lib/server/api';
 import { resolveMediaPath } from '$lib/server/services/storage';
-import { requireMembership } from '$lib/server/services/workspace';
 import { recordAction, FsOperation } from '$lib/server/fs-history';
+import { resolveOptionalWorkspaceContext } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ params, locals, request }) => {
@@ -28,16 +27,11 @@ export const POST: RequestHandler = async ({ params, locals, request }) => {
 		throw error(500, 'Failed to create folder');
 	}
 
-	const rawWorkspaceId = request.headers.get('X-Workspace-Id') ?? null;
-	let workspaceId: string | null = null;
-	if (rawWorkspaceId) {
-		try {
-			await requireMembership(rawWorkspaceId, user.id, 'MEMBER');
-			workspaceId = rawWorkspaceId;
-		} catch {
-			// Not a member — ignore the header, record without workspace context
-		}
-	}
+	const workspaceId = await resolveOptionalWorkspaceContext(
+		request.headers.get('X-Workspace-Id'),
+		user.id,
+		'MEMBER'
+	);
 
 	await recordAction({
 		userId: user.id,

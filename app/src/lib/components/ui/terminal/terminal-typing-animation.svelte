@@ -3,7 +3,7 @@
 	import { onDestroy } from 'svelte';
 	import { useAnimation } from './terminal.svelte.js';
 	import type { TerminalAnimationProps } from './types';
-	import { typewriter } from '$lib/actions/typewriter.svelte';
+	import { typewriter } from '$lib/typewriter.svelte.js';
 	import { box } from 'svelte-toolbelt';
 
 	let { children, delay = 0, class: className }: TerminalAnimationProps = $props();

@@ -27,7 +27,7 @@ import {
 	emitRunStep
 } from '$lib/server/agent-runs';
 import type { AgentAppContext } from '../context';
-import type { AgentRequest, Source, ToolCallSummary } from '../types';
+import type { AgentRequest } from '../types';
 import { MAX_AGENT_ITERATIONS } from '../types';
 import { messagesToAgentInputItems } from '../memory/history';
 import { normalizeFilters } from '../filters';
@@ -241,7 +241,6 @@ async function executeConfirmStreamingRun(
 // Process SDK stream events and map to SSE events for the client
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function processStreamEvents(
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	stream: StreamedRunResult<AgentAppContext, any>,

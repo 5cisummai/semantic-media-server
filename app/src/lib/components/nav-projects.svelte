@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/context.svelte.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
@@ -7,12 +8,14 @@
 	import ForwardIcon from '@lucide/svelte/icons/forward';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
+	type ProjectHref = '/home' | '/browse' | '/chat' | '/workspace' | '/settings';
+
 	let {
 		projects
 	}: {
 		projects: {
 			name: string;
-			url: string;
+			url: ProjectHref;
 			// This should be `Component` after @lucide/svelte updates types
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			icon: any;
@@ -29,7 +32,7 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton>
 					{#snippet child({ props })}
-						<a href={item.url} {...props}>
+						<a href={resolve(item.url)} {...props}>
 							<item.icon />
 							<span>{item.name}</span>
 						</a>

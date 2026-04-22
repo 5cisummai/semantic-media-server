@@ -1,9 +1,6 @@
 import { json, error, isHttpError } from '@sveltejs/kit';
 import { requireAuth, filterPersonalEntries } from '$lib/server/api';
-import {
-	listDirectoryShallowClientTree,
-	listDirectoryTree
-} from '$lib/server/services/storage';
+import { listDirectoryShallowClientTree, listDirectoryTree } from '$lib/server/services/storage';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, url }) => {

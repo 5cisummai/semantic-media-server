@@ -14,7 +14,10 @@
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
-	import { CHAT_AGENTS_SIDEBAR_COOKIE, SIDEBAR_COOKIE_MAX_AGE } from '$lib/components/ui/sidebar/constants.js';
+	import {
+		CHAT_AGENTS_SIDEBAR_COOKIE,
+		SIDEBAR_COOKIE_MAX_AGE
+	} from '$lib/components/ui/sidebar/constants.js';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte.js';
 	import { workspaceStore } from '$lib/hooks/workspace.svelte';
 	import { dedupeChatsById } from '$lib/utils.js';
@@ -311,7 +314,7 @@
 				class:pointer-events-none={!agentSidebarOpen}
 			>
 				<aside
-					class="absolute inset-y-0 left-0 flex h-full w-64 min-h-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+					class="absolute inset-y-0 left-0 flex h-full min-h-0 w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
 				>
 					{@render agentsPanel()}
 				</aside>

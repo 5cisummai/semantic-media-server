@@ -9,10 +9,10 @@ import busboy from 'busboy';
 import * as path from '$lib/server/paths';
 import { isPathInsideRoot, resolveMediaPath } from '$lib/server/services/storage';
 import { requireAuth, requirePathAccess } from '$lib/server/api';
-import { requireMembership } from '$lib/server/services/workspace';
 import { db } from '$lib/server/db';
 import { env } from '$env/dynamic/private';
 import { recordAction, FsOperation } from '$lib/server/fs-history';
+import { resolveOptionalWorkspaceContext } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, locals, platform }) => {
@@ -145,15 +145,7 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 			update: { uploadedById: user.id, uploadedAt: new Date() }
 		});
 
-		let workspaceId: string | null = null;
-		if (rawWorkspaceId) {
-			try {
-				await requireMembership(rawWorkspaceId, user.id, 'MEMBER');
-				workspaceId = rawWorkspaceId;
-			} catch {
-				// Not a member — ignore the supplied workspace ID
-			}
-		}
+		const workspaceId = await resolveOptionalWorkspaceContext(rawWorkspaceId, user.id, 'MEMBER');
 
 		await recordAction({
 			userId: user.id,

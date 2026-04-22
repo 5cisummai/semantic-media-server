@@ -33,9 +33,6 @@ interface ReindexSummary {
 	imageContentEmbeddingsUsed: number;
 }
 
-const DEFAULT_REINDEX_CONCURRENCY = 1;
-const MAX_REINDEX_CONCURRENCY = 8;
-
 function buildMetadataText(entry: MediaEntry): string {
 	const ext = path.extname(entry.name).slice(1).toLowerCase();
 	const parts = [
@@ -69,19 +66,6 @@ async function readSvgTextForEmbedding(entry: MediaEntry): Promise<string> {
 	} catch {
 		return '';
 	}
-}
-
-function resolveReindexConcurrency(): number {
-	const candidate = Number.parseInt(
-		env.EMBEDDING_REINDEX_CONCURRENCY ?? String(DEFAULT_REINDEX_CONCURRENCY),
-		10
-	);
-
-	if (!Number.isFinite(candidate) || candidate < 1) {
-		return DEFAULT_REINDEX_CONCURRENCY;
-	}
-
-	return Math.min(Math.floor(candidate), MAX_REINDEX_CONCURRENCY);
 }
 
 export function collectionName(workspaceId?: string): string {
@@ -391,7 +375,6 @@ async function makePoint(
 }
 
 export async function reindexSemanticCollection(workspaceId?: string): Promise<ReindexSummary> {
-	const concurrency = resolveReindexConcurrency();
 	const BATCH_SIZE = 50;
 
 	const existingIds = await brain.scrollPointIds(collectionName(workspaceId));

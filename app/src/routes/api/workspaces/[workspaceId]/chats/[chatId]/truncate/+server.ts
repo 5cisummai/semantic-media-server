@@ -1,4 +1,5 @@
 import { error, json } from '@sveltejs/kit';
+import { parseBody, truncateChatSchema } from '$lib/server/api';
 import { deleteMessagesFromMessageId } from '$lib/server/chat-store';
 import { requireWorkspaceAccess } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
@@ -9,11 +10,7 @@ export const POST: RequestHandler = async (event) => {
 	const chatId = event.params.chatId;
 	if (!chatId) throw error(400, 'Chat id is required');
 
-	const body = (await event.request.json().catch(() => null)) as { fromMessageId?: string } | null;
-	const fromMessageId = body?.fromMessageId?.trim();
-	if (!fromMessageId) {
-		throw error(400, 'fromMessageId is required');
-	}
+	const { fromMessageId } = await parseBody(event.request, truncateChatSchema);
 
 	try {
 		await deleteMessagesFromMessageId(userId, chatId, fromMessageId, workspaceId);

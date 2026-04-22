@@ -10,7 +10,6 @@
 
 import { error } from '@sveltejs/kit';
 import { RunState } from '@openai/agents';
-import { env } from '$env/dynamic/private';
 import type { AgentRequest, AgentRunConfig, ConfirmRunConfig } from './types';
 import { createAppContext, type AgentAppContext } from './context';
 import { AgentLogger } from './logger';
@@ -18,7 +17,7 @@ import { normalizeFilters } from './filters';
 import { createStreamingResponse, createConfirmStreamingResponse } from './transport/stream';
 import { sliceHistory } from './memory/history';
 import { getMediaAgent } from './agent';
-import { configureAgentProvider, getAgentModel } from './provider';
+import { configureAgentProvider } from './provider';
 import {
 	resolveOrCreateChat,
 	ensureOwnedChatSession,

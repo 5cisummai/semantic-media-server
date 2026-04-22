@@ -21,8 +21,7 @@ export const GET: RequestHandler = async (event) => {
 			return json({ type: 'directory', path: relativePath, entries });
 		}
 
-		const { type: _type, ...rest } = info;
-		return json({ type: 'file', ...rest });
+		return json(info);
 	} catch (err) {
 		if (err && typeof err === 'object' && 'status' in err) throw err;
 		const msg = err instanceof Error ? err.message : 'Failed to read path';

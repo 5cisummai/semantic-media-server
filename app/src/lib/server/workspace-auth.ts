@@ -18,10 +18,43 @@ export async function requireWorkspaceAccess(
 	const workspaceId = event.params.workspaceId;
 	if (!workspaceId) throw error(400, 'workspaceId is required');
 
+	const role = await getOptionalWorkspaceRole(workspaceId, user.id, minRole);
+	if (!role) throw error(403, 'Forbidden');
+	return { workspaceId, userId: user.id, role };
+}
+
+async function getOptionalWorkspaceRole(
+	workspaceId: string | null | undefined,
+	userId: string,
+	minRole: WorkspaceRole
+): Promise<WorkspaceRole | null> {
+	if (!workspaceId) return null;
+
 	try {
-		const role = await requireMembership(workspaceId, user.id, minRole);
-		return { workspaceId, userId: user.id, role };
+		return await requireMembership(workspaceId, userId, minRole);
 	} catch {
-		throw error(403, 'Forbidden');
+		return null;
 	}
+}
+
+export async function resolveOptionalWorkspaceContext(
+	workspaceId: string | null | undefined,
+	userId: string,
+	minRole: WorkspaceRole = 'VIEWER'
+): Promise<string | null> {
+	const role = await getOptionalWorkspaceRole(workspaceId, userId, minRole);
+	return role ? (workspaceId ?? null) : null;
+}
+
+export async function requireOptionalWorkspaceAccess(
+	workspaceId: string | null | undefined,
+	userId: string,
+	minRole: WorkspaceRole = 'VIEWER',
+	denialMessage = 'Access denied'
+): Promise<string | null> {
+	if (!workspaceId) return null;
+
+	const role = await getOptionalWorkspaceRole(workspaceId, userId, minRole);
+	if (!role) throw error(403, denialMessage);
+	return workspaceId;
 }

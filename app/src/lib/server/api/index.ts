@@ -5,7 +5,7 @@ export {
 	filterPersonalEntries,
 	type AuthenticatedUser
 } from './auth-guard';
-export { parseBody } from './validation';
+export { parseBody, parseOptionalBody } from './validation';
 export {
 	approveUserSchema,
 	updateAppUserRoleSchema,
@@ -15,7 +15,13 @@ export {
 	updateRoleSchema,
 	updateWorkspaceSchema,
 	createWorkspaceSchema,
-	ingestDirectorySchema
+	ingestDirectorySchema,
+	askRequestSchema,
+	confirmToolSchema,
+	createChatSchema,
+	truncateChatSchema,
+	workspaceSelectionSchema,
+	uploadIndexSchema
 } from './validation';
 export { audit, type AuditAction } from './audit';
 export { safeErrorResponse, notFoundResponse, operationFailedResponse } from './errors';

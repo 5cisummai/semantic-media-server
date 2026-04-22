@@ -15,12 +15,13 @@
  */
 
 import { browser } from '$app/environment';
+import { SvelteMap } from 'svelte/reactivity';
 
 type AgentStatus = 'working' | 'idle';
 
 class AgentSessionsStore {
 	/** Reactive map of chatId → current status. */
-	#statuses = $state(new Map<string, AgentStatus>());
+	#statuses = new SvelteMap<string, AgentStatus>();
 
 	#es: EventSource | null = null;
 	#reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -35,26 +36,30 @@ class AgentSessionsStore {
 	}
 
 	setWorking(chatId: string) {
-		this.#statuses = new Map(this.#statuses).set(chatId, 'working');
+		this.#statuses.set(chatId, 'working');
 	}
 
 	setIdle(chatId: string) {
-		const next = new Map(this.#statuses);
-		next.delete(chatId);
-		this.#statuses = next;
+		this.#statuses.delete(chatId);
 	}
 
 	/** Seed multiple statuses from an initial fetch (e.g. workspace chat list). */
 	seedFromChats(chats: { id: string; status: AgentStatus | string }[]) {
-		const next = new Map(this.#statuses);
-		for (const c of chats) {
-			if (c.status === 'working') {
-				next.set(c.id, 'working');
-			} else {
-				next.delete(c.id);
+		const workingIds = new Set(
+			chats.filter((chat) => chat.status === 'working').map((chat) => chat.id)
+		);
+
+		for (const chatId of Array.from(this.#statuses.keys())) {
+			if (!workingIds.has(chatId)) {
+				this.#statuses.delete(chatId);
 			}
 		}
-		this.#statuses = next;
+
+		for (const c of chats) {
+			if (c.status === 'working') {
+				this.#statuses.set(c.id, 'working');
+			}
+		}
 	}
 
 	/** Open SSE for the given workspace. Reconnects when `workspaceId` changes. */

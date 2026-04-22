@@ -10,7 +10,6 @@ import { db } from '$lib/server/db';
 import { FsOperation, FsActionStatus } from '@prisma/client';
 import { restoreFromTrash, cleanTrashEntry } from '$lib/server/trash';
 import { resolveMediaPathForUserId } from '$lib/server/services/storage';
-import * as path from '$lib/server/paths';
 
 export { FsOperation, FsActionStatus };
 
@@ -96,86 +95,83 @@ export async function undoUserAction(userId: string, workspaceId?: string | null
 
 	const payload = action.payload as unknown as FsPayload;
 
-	try {
-		switch (action.operation) {
-			case FsOperation.DELETE: {
-				const p = payload as DeletePayload;
-				const resolved = await resolveMediaPathForUserId(p.relativePath, userId);
-				if (!resolved) throw new Error(`Invalid path: ${p.relativePath}`);
-				await restoreFromTrash(p.trashKey, resolved.fullPath, p.root);
-				// Restore UploadedFile DB record if it existed
-				await db.uploadedFile
-					.upsert({
-						where: { relativePath: p.relativePath },
-						create: { relativePath: p.relativePath, uploadedById: userId },
-						update: {}
-					})
-					.catch(() => undefined);
-				break;
-			}
-			case FsOperation.MOVE: {
-				const p = payload as MovePayload;
-				const srcRes = await resolveMediaPathForUserId(p.to, userId);
-				const dstRes = await resolveMediaPathForUserId(p.from, userId);
-				if (!srcRes || !dstRes) throw new Error('Invalid move paths');
-				await fs.rename(srcRes.fullPath, dstRes.fullPath);
-				// Update UploadedFile records
-				await db.uploadedFile
-					.updateMany({
-						where: { relativePath: p.to },
-						data: { relativePath: p.from }
-					})
-					.catch(() => undefined);
-				break;
-			}
-			case FsOperation.COPY: {
-				const p = payload as CopyPayload;
-				const resolved = await resolveMediaPathForUserId(p.destination, userId);
-				if (!resolved) throw new Error(`Invalid path: ${p.destination}`);
-				const stat = await fs.stat(resolved.fullPath);
-				if (stat.isDirectory()) {
-					await fs.rm(resolved.fullPath, { recursive: true });
-				} else {
-					await fs.unlink(resolved.fullPath);
-				}
-				await db.uploadedFile
-					.deleteMany({ where: { relativePath: p.destination } })
-					.catch(() => undefined);
-				break;
-			}
-			case FsOperation.MKDIR: {
-				const p = payload as MkdirPayload;
-				const resolved = await resolveMediaPathForUserId(p.path, userId);
-				if (!resolved) throw new Error(`Invalid path: ${p.path}`);
-				try {
-					await fs.rmdir(resolved.fullPath);
-				} catch (err) {
-					if (
-						err instanceof Error &&
-						'code' in err &&
-						(err as NodeJS.ErrnoException).code === 'ENOTEMPTY'
-					) {
-						throw new Error(
-							`Cannot undo mkdir: directory "${p.path}" is not empty. Move or delete its contents first.`
-						);
-					}
-					throw err;
-				}
-				break;
-			}
-			case FsOperation.UPLOAD: {
-				const p = payload as UploadPayload;
-				const resolved = await resolveMediaPathForUserId(p.relativePath, userId);
-				if (!resolved) throw new Error(`Invalid path: ${p.relativePath}`);
-				await fs.unlink(resolved.fullPath);
-				await db.uploadedFile
-					.deleteMany({ where: { relativePath: p.relativePath } })
-					.catch(() => undefined);
-				break;
-			}
+	switch (action.operation) {
+		case FsOperation.DELETE: {
+			const p = payload as DeletePayload;
+			const resolved = await resolveMediaPathForUserId(p.relativePath, userId);
+			if (!resolved) throw new Error(`Invalid path: ${p.relativePath}`);
+			await restoreFromTrash(p.trashKey, resolved.fullPath, p.root);
+			// Restore UploadedFile DB record if it existed
+			await db.uploadedFile
+				.upsert({
+					where: { relativePath: p.relativePath },
+					create: { relativePath: p.relativePath, uploadedById: userId },
+					update: {}
+				})
+				.catch(() => undefined);
+			break;
 		}
-	} catch (err) {
-		throw err;
+		case FsOperation.MOVE: {
+			const p = payload as MovePayload;
+			const srcRes = await resolveMediaPathForUserId(p.to, userId);
+			const dstRes = await resolveMediaPathForUserId(p.from, userId);
+			if (!srcRes || !dstRes) throw new Error('Invalid move paths');
+			await fs.rename(srcRes.fullPath, dstRes.fullPath);
+			// Update UploadedFile records
+			await db.uploadedFile
+				.updateMany({
+					where: { relativePath: p.to },
+					data: { relativePath: p.from }
+				})
+				.catch(() => undefined);
+			break;
+		}
+		case FsOperation.COPY: {
+			const p = payload as CopyPayload;
+			const resolved = await resolveMediaPathForUserId(p.destination, userId);
+			if (!resolved) throw new Error(`Invalid path: ${p.destination}`);
+			const stat = await fs.stat(resolved.fullPath);
+			if (stat.isDirectory()) {
+				await fs.rm(resolved.fullPath, { recursive: true });
+			} else {
+				await fs.unlink(resolved.fullPath);
+			}
+			await db.uploadedFile
+				.deleteMany({ where: { relativePath: p.destination } })
+				.catch(() => undefined);
+			break;
+		}
+		case FsOperation.MKDIR: {
+			const p = payload as MkdirPayload;
+			const resolved = await resolveMediaPathForUserId(p.path, userId);
+			if (!resolved) throw new Error(`Invalid path: ${p.path}`);
+			try {
+				await fs.rmdir(resolved.fullPath);
+			} catch (err) {
+				if (
+					err instanceof Error &&
+					'code' in err &&
+					(err as NodeJS.ErrnoException).code === 'ENOTEMPTY'
+				) {
+					throw new Error(
+						`Cannot undo mkdir: directory "${p.path}" is not empty. Move or delete its contents first.`,
+						{ cause: err }
+					);
+				}
+				throw err;
+			}
+			break;
+		}
+		case FsOperation.UPLOAD: {
+			const p = payload as UploadPayload;
+			const resolved = await resolveMediaPathForUserId(p.relativePath, userId);
+			if (!resolved) throw new Error(`Invalid path: ${p.relativePath}`);
+			await fs.unlink(resolved.fullPath);
+			await db.uploadedFile
+				.deleteMany({ where: { relativePath: p.relativePath } })
+				.catch(() => undefined);
+			break;
+		}
 	}
 
 	// Mark as UNDONE
@@ -206,52 +202,48 @@ export async function redoUserAction(userId: string, workspaceId?: string | null
 
 	const payload = action.payload as unknown as FsPayload;
 
-	try {
-		switch (action.operation) {
-			case FsOperation.DELETE: {
-				const p = payload as DeletePayload;
-				const resolved = await resolveMediaPathForUserId(p.relativePath, userId);
-				if (!resolved) throw new Error(`Invalid path: ${p.relativePath}`);
-				// Re-delete: move back to trash
-				const { moveToTrash } = await import('$lib/server/trash');
-				await moveToTrash(resolved.fullPath, p.trashKey);
-				await db.uploadedFile
-					.deleteMany({ where: { relativePath: p.relativePath } })
-					.catch(() => undefined);
-				break;
-			}
-			case FsOperation.MOVE: {
-				const p = payload as MovePayload;
-				const srcRes = await resolveMediaPathForUserId(p.from, userId);
-				const dstRes = await resolveMediaPathForUserId(p.to, userId);
-				if (!srcRes || !dstRes) throw new Error('Invalid move paths');
-				await fs.rename(srcRes.fullPath, dstRes.fullPath);
-				await db.uploadedFile
-					.updateMany({ where: { relativePath: p.from }, data: { relativePath: p.to } })
-					.catch(() => undefined);
-				break;
-			}
-			case FsOperation.COPY: {
-				const p = payload as CopyPayload;
-				// Source bytes are gone — we only stored the destination, not the source.
-				// Redo is not possible. Return null so the caller can report this clearly.
-				void p;
-				return null;
-			}
-			case FsOperation.MKDIR: {
-				const p = payload as MkdirPayload;
-				const resolved = await resolveMediaPathForUserId(p.path, userId);
-				if (!resolved) throw new Error(`Invalid path: ${p.path}`);
-				await fs.mkdir(resolved.fullPath);
-				break;
-			}
-			case FsOperation.UPLOAD: {
-				// File bytes are gone — redo is not possible. Return null to report clearly.
-				return null;
-			}
+	switch (action.operation) {
+		case FsOperation.DELETE: {
+			const p = payload as DeletePayload;
+			const resolved = await resolveMediaPathForUserId(p.relativePath, userId);
+			if (!resolved) throw new Error(`Invalid path: ${p.relativePath}`);
+			// Re-delete: move back to trash
+			const { moveToTrash } = await import('$lib/server/trash');
+			await moveToTrash(resolved.fullPath, p.trashKey);
+			await db.uploadedFile
+				.deleteMany({ where: { relativePath: p.relativePath } })
+				.catch(() => undefined);
+			break;
 		}
-	} catch (err) {
-		throw err;
+		case FsOperation.MOVE: {
+			const p = payload as MovePayload;
+			const srcRes = await resolveMediaPathForUserId(p.from, userId);
+			const dstRes = await resolveMediaPathForUserId(p.to, userId);
+			if (!srcRes || !dstRes) throw new Error('Invalid move paths');
+			await fs.rename(srcRes.fullPath, dstRes.fullPath);
+			await db.uploadedFile
+				.updateMany({ where: { relativePath: p.from }, data: { relativePath: p.to } })
+				.catch(() => undefined);
+			break;
+		}
+		case FsOperation.COPY: {
+			const p = payload as CopyPayload;
+			// Source bytes are gone — we only stored the destination, not the source.
+			// Redo is not possible. Return null so the caller can report this clearly.
+			void p;
+			return null;
+		}
+		case FsOperation.MKDIR: {
+			const p = payload as MkdirPayload;
+			const resolved = await resolveMediaPathForUserId(p.path, userId);
+			if (!resolved) throw new Error(`Invalid path: ${p.path}`);
+			await fs.mkdir(resolved.fullPath);
+			break;
+		}
+		case FsOperation.UPLOAD: {
+			// File bytes are gone — redo is not possible. Return null to report clearly.
+			return null;
+		}
 	}
 
 	// Mark as DONE again

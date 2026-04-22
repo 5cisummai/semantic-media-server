@@ -61,7 +61,11 @@
 		}));
 	}
 
-	function mergeChildrenAtPath(nodes: FileEntry[], targetPath: string, newChildren: FileEntry[]): FileEntry[] {
+	function mergeChildrenAtPath(
+		nodes: FileEntry[],
+		targetPath: string,
+		newChildren: FileEntry[]
+	): FileEntry[] {
 		return nodes.map((node) => {
 			if (node.path === targetPath && node.type === 'directory') {
 				return { ...node, children: newChildren };

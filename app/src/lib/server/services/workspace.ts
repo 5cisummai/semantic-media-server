@@ -97,13 +97,16 @@ export async function createWorkspace(
 			const rollbackMessage =
 				rollbackError instanceof Error ? rollbackError.message : 'Unknown rollback error';
 			throw new Error(
-				`Failed to initialize workspace storage: ${storageMessage}. Rollback failed: ${rollbackMessage}`
+				`Failed to initialize workspace storage: ${storageMessage}. Rollback failed: ${rollbackMessage}`,
+				{ cause: rollbackError }
 			);
 		}
 
 		const storageMessage =
 			storageError instanceof Error ? storageError.message : 'Unknown storage error';
-		throw new Error(`Failed to initialize workspace storage: ${storageMessage}`);
+		throw new Error(`Failed to initialize workspace storage: ${storageMessage}`, {
+			cause: storageError
+		});
 	}
 
 	return {
@@ -222,7 +225,9 @@ export async function deleteWorkspace(workspaceId: string): Promise<void> {
 	} catch (storageError) {
 		const storageMessage =
 			storageError instanceof Error ? storageError.message : 'Unknown storage error';
-		throw new Error(`Failed to remove workspace storage: ${storageMessage}`);
+		throw new Error(`Failed to remove workspace storage: ${storageMessage}`, {
+			cause: storageError
+		});
 	}
 }
 

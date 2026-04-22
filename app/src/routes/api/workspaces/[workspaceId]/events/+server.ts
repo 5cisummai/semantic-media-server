@@ -1,4 +1,3 @@
-import { error } from '@sveltejs/kit';
 import { requireWorkspaceAccess } from '$lib/server/workspace-auth';
 import { subscribe, type WorkspaceEvent } from '$lib/server/services/event-bus';
 import type { RequestHandler } from './$types';
