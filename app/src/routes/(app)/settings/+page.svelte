@@ -26,10 +26,17 @@
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import {
 		AUTO_APPROVE_SETTINGS,
+		fetchServerAutoApproveToolNames,
+		getAutoApproveToolNames,
+		isAutoApproveSettingEnabledInList,
 		isAutoApproveSettingEnabled,
+		saveServerAutoApproveToolNames,
+		setAutoApproveSettingInList,
 		setAutoApproveSettingEnabled,
+		setAutoApproveToolNames,
 		type AutoApproveSettingId
 	} from '$lib/agent-auto-approve';
+	import { workspaceStore } from '$lib/hooks/workspace.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -76,14 +83,45 @@
 		copy_file: false,
 		mkdir: false
 	});
+	let agentAutoApproveToolNames = $state<string[]>([]);
+	let assistantSettingsBusy = $state(false);
 
 	function syncAgentAutoApproveFromStorage() {
+		agentAutoApproveToolNames = getAutoApproveToolNames();
 		agentAutoApprove = {
 			delete_file: isAutoApproveSettingEnabled('delete_file'),
 			move: isAutoApproveSettingEnabled('move'),
 			copy_file: isAutoApproveSettingEnabled('copy_file'),
 			mkdir: isAutoApproveSettingEnabled('mkdir')
 		};
+	}
+
+	function syncAgentAutoApproveFromNames(names: string[]) {
+		agentAutoApproveToolNames = names;
+		agentAutoApprove = {
+			delete_file: isAutoApproveSettingEnabledInList('delete_file', names),
+			move: isAutoApproveSettingEnabledInList('move', names),
+			copy_file: isAutoApproveSettingEnabledInList('copy_file', names),
+			mkdir: isAutoApproveSettingEnabledInList('mkdir', names)
+		};
+	}
+
+	async function loadAssistantSettings() {
+		const workspaceId = workspaceStore.activeId;
+		if (!workspaceId) {
+			syncAgentAutoApproveFromStorage();
+			return;
+		}
+		assistantSettingsBusy = true;
+		try {
+			const names = await fetchServerAutoApproveToolNames(workspaceId);
+			syncAgentAutoApproveFromNames(names);
+			setAutoApproveToolNames(names);
+		} catch {
+			syncAgentAutoApproveFromStorage();
+		} finally {
+			assistantSettingsBusy = false;
+		}
 	}
 
 	async function approveUser(userId: string) {
@@ -205,13 +243,13 @@
 	}
 
 	if (browser) {
-		syncAgentAutoApproveFromStorage();
+		void loadAssistantSettings();
 	}
 
 	$effect(() => {
 		if (!browser) return;
 		if (settingsTab === 'assistant') {
-			syncAgentAutoApproveFromStorage();
+			void loadAssistantSettings();
 		}
 	});
 </script>
@@ -356,7 +394,7 @@
 					<p class="mb-4 text-sm text-muted-foreground">
 						When the chat assistant wants to change files (delete, move, copy, or create folders),
 						it normally asks for confirmation. You can auto-approve specific action types so they
-						run without a prompt. Preferences are stored in this browser only.
+						run without a prompt. Preferences are synced per workspace on the backend.
 					</p>
 					<ul class="flex flex-col gap-3">
 						{#each AUTO_APPROVE_SETTINGS as opt (opt.id)}
@@ -366,10 +404,32 @@
 								>
 									<Checkbox
 										checked={agentAutoApprove[opt.id]}
+										disabled={assistantSettingsBusy}
 										onCheckedChange={(checked) => {
 											const on = !!checked;
+											const nextNames = setAutoApproveSettingInList(
+												opt.id,
+												on,
+												agentAutoApproveToolNames
+											);
 											setAutoApproveSettingEnabled(opt.id, on);
-											agentAutoApprove = { ...agentAutoApprove, [opt.id]: on };
+											syncAgentAutoApproveFromNames(nextNames);
+											setAutoApproveToolNames(nextNames);
+											const workspaceId = workspaceStore.activeId;
+											if (workspaceId) {
+												assistantSettingsBusy = true;
+												void saveServerAutoApproveToolNames(workspaceId, nextNames)
+													.then((saved) => {
+														syncAgentAutoApproveFromNames(saved);
+														setAutoApproveToolNames(saved);
+													})
+													.catch(() => {
+														toast.error('Could not save assistant preferences');
+													})
+													.finally(() => {
+														assistantSettingsBusy = false;
+													});
+											}
 										}}
 										class="mt-0.5"
 									/>

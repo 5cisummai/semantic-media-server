@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { runAgent } from '$lib/server/agent';
-import { normalizeAutoApproveToolNames } from '$lib/server/agent/auto-approve-tools';
+import { mergeAgentAutoApproveToolNames } from '$lib/server/agent-settings';
 import { askRequestSchema, parseBody } from '$lib/server/api';
 import { requireWorkspaceAccess } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
@@ -21,7 +21,11 @@ export const POST: RequestHandler = async (event) => {
 			? Math.floor(body.maxHistoryMessages)
 			: undefined;
 
-	const autoApproveToolNames = normalizeAutoApproveToolNames(body.autoApproveToolNames);
+	const autoApproveToolNames = await mergeAgentAutoApproveToolNames(
+		userId,
+		workspaceId,
+		body.autoApproveToolNames
+	);
 
 	return runAgent(
 		body.question ?? '',

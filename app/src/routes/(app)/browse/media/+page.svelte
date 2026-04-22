@@ -10,30 +10,15 @@
 	import '$lib/styles/media-code-editor-host.css';
 	import { Button } from '$lib/components/ui/button';
 	import { apiFetch } from '$lib/api-fetch';
-	import { isTextEditorExtension } from '$lib/media-text-extensions';
 
-	const MEDIA_EXTENSIONS = {
-		video: ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv', 'ogv'],
-		audio: ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'wma'],
-		image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'ico'],
-		pdf: ['pdf']
-	};
-
-	function getMediaType(path: string): 'video' | 'audio' | 'image' | 'pdf' | 'text' | null {
-		const ext = path.split('.').pop()?.toLowerCase() ?? '';
-		if (MEDIA_EXTENSIONS.video.includes(ext)) return 'video';
-		if (MEDIA_EXTENSIONS.audio.includes(ext)) return 'audio';
-		if (MEDIA_EXTENSIONS.image.includes(ext)) return 'image';
-		if (MEDIA_EXTENSIONS.pdf.includes(ext)) return 'pdf';
-		if (isTextEditorExtension(ext)) return 'text';
-		return null;
-	}
+	type MediaViewerKind = 'video' | 'audio' | 'image' | 'pdf' | 'text' | 'none';
 
 	const selectedFile = $derived(($page.url.searchParams.get('file') ?? '') as string);
-	const mediaType = $derived(selectedFile ? getMediaType(selectedFile) : null);
 	const mediaUrl = $derived(selectedFile ? `/api/stream/${selectedFile}` : '');
 	const writeUrl = $derived(selectedFile ? `/api/write/${selectedFile}` : '');
 	const fileName = $derived(selectedFile.split('/').pop() ?? 'Unknown');
+	let mediaType = $state<Exclude<MediaViewerKind, 'none'> | null>(null);
+	let mediaTypeLoadError = $state<string | null>(null);
 	let textContent = $state('');
 	let textDraft = $state('');
 	let textLoadError = $state<string | null>(null);
@@ -44,6 +29,35 @@
 
 	let editorLoadToken = $state(0);
 	let codeWorkspace = $state<Workspace | undefined>(undefined);
+
+	$effect(() => {
+		if (!selectedFile) {
+			mediaType = null;
+			mediaTypeLoadError = null;
+			return;
+		}
+		const controller = new AbortController();
+		mediaType = null;
+		mediaTypeLoadError = null;
+		void apiFetch(`/api/browse/${selectedFile}?entry=1`, { signal: controller.signal })
+			.then(async (res) => {
+				if (!res.ok) throw new Error(`HTTP ${res.status}`);
+				const payload = (await res.json()) as {
+					entry?: { viewerKind?: MediaViewerKind };
+				};
+				const kind = payload.entry?.viewerKind;
+				mediaType =
+					kind && kind !== 'none' && ['video', 'audio', 'image', 'pdf', 'text'].includes(kind)
+						? (kind as Exclude<MediaViewerKind, 'none'>)
+						: null;
+			})
+			.catch((err: unknown) => {
+				if (err instanceof DOMException && err.name === 'AbortError') return;
+				mediaType = null;
+				mediaTypeLoadError = err instanceof Error ? err.message : 'Could not load file metadata';
+			});
+		return () => controller.abort();
+	});
 
 	$effect(() => {
 		if (mediaType !== 'text' || !mediaUrl) {
@@ -250,6 +264,8 @@
 		<p class="text-sm text-muted-foreground">
 			{#if !selectedFile}
 				No file selected.
+			{:else if mediaTypeLoadError}
+				Could not load file metadata: {mediaTypeLoadError}
 			{:else}
 				This file type is not supported for inline preview.
 			{/if}

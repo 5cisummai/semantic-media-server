@@ -1,5 +1,5 @@
 import { confirmTool } from '$lib/server/agent';
-import { normalizeAutoApproveToolNames } from '$lib/server/agent/auto-approve-tools';
+import { mergeAgentAutoApproveToolNames } from '$lib/server/agent-settings';
 import { confirmToolSchema, parseBody } from '$lib/server/api';
 import { requireWorkspaceAccess } from '$lib/server/workspace-auth';
 import type { RequestHandler } from './$types';
@@ -10,7 +10,11 @@ export const POST: RequestHandler = async (event) => {
 
 	const body = await parseBody(event.request, confirmToolSchema);
 
-	const autoApproveToolNames = normalizeAutoApproveToolNames(body.autoApproveToolNames);
+	const autoApproveToolNames = await mergeAgentAutoApproveToolNames(
+		userId,
+		workspaceId,
+		body.autoApproveToolNames
+	);
 
 	return confirmTool({
 		userId,

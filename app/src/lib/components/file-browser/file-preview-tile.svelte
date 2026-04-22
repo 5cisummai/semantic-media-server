@@ -4,6 +4,8 @@
 		path?: string;
 		url?: string;
 		mimeType?: string;
+		mediaType?: 'video' | 'audio' | 'image' | 'document' | 'other';
+		viewerKind?: 'video' | 'audio' | 'image' | 'pdf' | 'text' | 'none';
 		type?: 'file' | 'directory';
 	};
 </script>
@@ -49,17 +51,31 @@
 
 	const isImage = $derived(
 		!isDirectory &&
-			((item.mimeType?.startsWith('image/') ?? false) || IMAGE_EXTENSIONS.has(extension))
+			(item.viewerKind === 'image' ||
+				item.mediaType === 'image' ||
+				(item.mimeType?.startsWith('image/') ?? false) ||
+				IMAGE_EXTENSIONS.has(extension))
 	);
 	const isVideo = $derived(
 		!isDirectory &&
-			((item.mimeType?.startsWith('video/') ?? false) || VIDEO_EXTENSIONS.has(extension))
+			(item.viewerKind === 'video' ||
+				item.mediaType === 'video' ||
+				(item.mimeType?.startsWith('video/') ?? false) ||
+				VIDEO_EXTENSIONS.has(extension))
 	);
 	const isAudio = $derived(
 		!isDirectory &&
-			((item.mimeType?.startsWith('audio/') ?? false) || AUDIO_EXTENSIONS.has(extension))
+			(item.viewerKind === 'audio' ||
+				item.mediaType === 'audio' ||
+				(item.mimeType?.startsWith('audio/') ?? false) ||
+				AUDIO_EXTENSIONS.has(extension))
 	);
-	const isDocument = $derived(!isDirectory && DOCUMENT_EXTENSIONS.has(extension));
+	const isDocument = $derived(
+		!isDirectory &&
+			(item.viewerKind === 'pdf' ||
+				item.mediaType === 'document' ||
+				DOCUMENT_EXTENSIONS.has(extension))
+	);
 
 	const TileIcon = $derived.by(() => {
 		if (isDirectory) return FolderIcon;

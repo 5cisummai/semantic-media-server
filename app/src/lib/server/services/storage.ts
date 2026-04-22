@@ -3,9 +3,11 @@ import type { UserRole } from '@prisma/client';
 import * as path from '$lib/server/paths';
 import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/db';
+import { mediaTrashBrowsePath as sharedMediaTrashBrowsePath } from '$lib/media-trash-path';
 import { TEXT_EDITOR_EXTENSIONS } from '$lib/media-text-extensions';
 
 export type MediaType = 'video' | 'audio' | 'image' | 'document' | 'other';
+export type MediaViewerKind = 'video' | 'audio' | 'image' | 'pdf' | 'text' | 'none';
 
 export interface MediaEntry {
 	name: string;
@@ -16,6 +18,7 @@ export interface MediaEntry {
 	size?: number;
 	modified?: string;
 	mimeType?: string;
+	viewerKind?: MediaViewerKind;
 }
 
 export interface DriveInfo {
@@ -31,37 +34,40 @@ export interface DriveInfo {
 
 const TEXT_EDITOR_MIME = 'text/plain; charset=utf-8';
 
-const MEDIA_EXTENSIONS: Record<string, { mediaType: MediaType; mimeType: string }> = {
+const MEDIA_EXTENSIONS: Record<
+	string,
+	{ mediaType: MediaType; mimeType: string; viewerKind: MediaViewerKind }
+> = {
 	// Video
-	mp4: { mediaType: 'video', mimeType: 'video/mp4' },
-	mkv: { mediaType: 'video', mimeType: 'video/x-matroska' },
-	webm: { mediaType: 'video', mimeType: 'video/webm' },
-	avi: { mediaType: 'video', mimeType: 'video/x-msvideo' },
-	mov: { mediaType: 'video', mimeType: 'video/quicktime' },
+	mp4: { mediaType: 'video', mimeType: 'video/mp4', viewerKind: 'video' },
+	mkv: { mediaType: 'video', mimeType: 'video/x-matroska', viewerKind: 'video' },
+	webm: { mediaType: 'video', mimeType: 'video/webm', viewerKind: 'video' },
+	avi: { mediaType: 'video', mimeType: 'video/x-msvideo', viewerKind: 'video' },
+	mov: { mediaType: 'video', mimeType: 'video/quicktime', viewerKind: 'video' },
 	// Audio
-	mp3: { mediaType: 'audio', mimeType: 'audio/mpeg' },
-	flac: { mediaType: 'audio', mimeType: 'audio/flac' },
-	ogg: { mediaType: 'audio', mimeType: 'audio/ogg' },
-	wav: { mediaType: 'audio', mimeType: 'audio/wav' },
-	aac: { mediaType: 'audio', mimeType: 'audio/aac' },
-	m4a: { mediaType: 'audio', mimeType: 'audio/mp4' },
+	mp3: { mediaType: 'audio', mimeType: 'audio/mpeg', viewerKind: 'audio' },
+	flac: { mediaType: 'audio', mimeType: 'audio/flac', viewerKind: 'audio' },
+	ogg: { mediaType: 'audio', mimeType: 'audio/ogg', viewerKind: 'audio' },
+	wav: { mediaType: 'audio', mimeType: 'audio/wav', viewerKind: 'audio' },
+	aac: { mediaType: 'audio', mimeType: 'audio/aac', viewerKind: 'audio' },
+	m4a: { mediaType: 'audio', mimeType: 'audio/mp4', viewerKind: 'audio' },
 	// Images
-	jpg: { mediaType: 'image', mimeType: 'image/jpeg' },
-	jpeg: { mediaType: 'image', mimeType: 'image/jpeg' },
-	png: { mediaType: 'image', mimeType: 'image/png' },
-	gif: { mediaType: 'image', mimeType: 'image/gif' },
-	webp: { mediaType: 'image', mimeType: 'image/webp' },
-	avif: { mediaType: 'image', mimeType: 'image/avif' },
-	svg: { mediaType: 'image', mimeType: 'image/svg+xml' },
+	jpg: { mediaType: 'image', mimeType: 'image/jpeg', viewerKind: 'image' },
+	jpeg: { mediaType: 'image', mimeType: 'image/jpeg', viewerKind: 'image' },
+	png: { mediaType: 'image', mimeType: 'image/png', viewerKind: 'image' },
+	gif: { mediaType: 'image', mimeType: 'image/gif', viewerKind: 'image' },
+	webp: { mediaType: 'image', mimeType: 'image/webp', viewerKind: 'image' },
+	avif: { mediaType: 'image', mimeType: 'image/avif', viewerKind: 'image' },
+	svg: { mediaType: 'image', mimeType: 'image/svg+xml', viewerKind: 'image' },
 	// Documents
-	pdf: { mediaType: 'document', mimeType: 'application/pdf' },
-	epub: { mediaType: 'document', mimeType: 'application/epub+zip' },
-	cbz: { mediaType: 'document', mimeType: 'application/zip' },
-	cbr: { mediaType: 'document', mimeType: 'application/x-rar-compressed' },
+	pdf: { mediaType: 'document', mimeType: 'application/pdf', viewerKind: 'pdf' },
+	epub: { mediaType: 'document', mimeType: 'application/epub+zip', viewerKind: 'none' },
+	cbz: { mediaType: 'document', mimeType: 'application/zip', viewerKind: 'none' },
+	cbr: { mediaType: 'document', mimeType: 'application/x-rar-compressed', viewerKind: 'none' },
 	...Object.fromEntries(
 		TEXT_EDITOR_EXTENSIONS.map((ext) => [
 			ext,
-			{ mediaType: 'other' as MediaType, mimeType: TEXT_EDITOR_MIME }
+			{ mediaType: 'other' as MediaType, mimeType: TEXT_EDITOR_MIME, viewerKind: 'text' as const }
 		])
 	)
 };
@@ -347,9 +353,14 @@ export function getMediaInfo(filename: string) {
 	return (
 		MEDIA_EXTENSIONS[ext] ?? {
 			mediaType: 'other' as MediaType,
-			mimeType: 'application/octet-stream'
+			mimeType: 'application/octet-stream',
+			viewerKind: 'none' as MediaViewerKind
 		}
 	);
+}
+
+export function mediaTrashBrowsePath(activePath: string): string {
+	return sharedMediaTrashBrowsePath(activePath);
 }
 
 export async function getStorageDrives(): Promise<DriveInfo[]> {
@@ -392,6 +403,39 @@ export async function getStorageDrives(): Promise<DriveInfo[]> {
 export type ClientMediaEntry = Omit<MediaEntry, 'fullPath'> & {
 	children?: ClientMediaEntry[];
 };
+
+export async function getMediaEntry(
+	relativePath: string,
+	viewer?: MediaPathUser | null
+): Promise<MediaEntry> {
+	const cleaned = relativePath.replace(/^[/\\]+/, '');
+	if (!cleaned) throw new Error('Path is required');
+	const resolved = viewer ? await resolveMediaPath(cleaned, viewer) : resolveSafePath(cleaned);
+	if (!resolved) throw new Error('Invalid path');
+	const stat = await fs.stat(resolved.fullPath);
+	const name = path.basename(cleaned);
+	if (stat.isDirectory()) {
+		return {
+			name,
+			path: cleaned,
+			fullPath: resolved.fullPath,
+			type: 'directory',
+			modified: stat.mtime.toISOString()
+		};
+	}
+	const { mediaType, mimeType, viewerKind } = getMediaInfo(name);
+	return {
+		name,
+		path: cleaned,
+		fullPath: resolved.fullPath,
+		type: 'file',
+		mediaType,
+		mimeType,
+		viewerKind,
+		size: stat.size,
+		modified: stat.mtime.toISOString()
+	};
+}
 
 export async function listDirectory(
 	relativePath: string,
@@ -455,7 +499,7 @@ export async function listDirectory(
 				modified: stat.mtime.toISOString()
 			};
 		}
-		const { mediaType, mimeType } = getMediaInfo(dirent.name);
+		const { mediaType, mimeType, viewerKind } = getMediaInfo(dirent.name);
 		return {
 			name: dirent.name,
 			path: childRelative,
@@ -463,6 +507,7 @@ export async function listDirectory(
 			type: 'file' as const,
 			mediaType,
 			mimeType,
+			viewerKind,
 			size: stat.size,
 			modified: stat.mtime.toISOString()
 		};

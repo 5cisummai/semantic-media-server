@@ -1,6 +1,11 @@
 import { json, error, isHttpError } from '@sveltejs/kit';
 import { requireAuth, requirePathAccess, filterPersonalEntries } from '$lib/server/api';
-import { listDirectory, listDirectoryTree } from '$lib/server/services/storage';
+import {
+	getMediaEntry,
+	listDirectory,
+	listDirectoryTree,
+	mediaTrashBrowsePath
+} from '$lib/server/services/storage';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, locals, url }) => {
@@ -8,7 +13,18 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
 	try {
 		const relativePath = params.path ?? '';
 		const recursive = url.searchParams.get('recursive') === '1';
+		const entryOnly = url.searchParams.get('entry') === '1';
 		await requirePathAccess(user, relativePath);
+
+		if (entryOnly) {
+			const entry = await getMediaEntry(relativePath, user);
+			const { fullPath, ...safeEntry } = entry;
+			void fullPath;
+			return json({
+				entry: safeEntry,
+				trashPath: mediaTrashBrowsePath(relativePath)
+			});
+		}
 
 		if (recursive) {
 			const entries = await listDirectoryTree(relativePath, user);

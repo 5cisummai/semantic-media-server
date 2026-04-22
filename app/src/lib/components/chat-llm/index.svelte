@@ -2,7 +2,22 @@
 	import type { Snippet } from 'svelte';
 	import { tick, untrack } from 'svelte';
 	import { apiFetch } from '$lib/api-fetch';
-	import { addAutoApproveToolName, getAutoApproveToolNames } from '$lib/agent-auto-approve';
+	import {
+		fetchServerAutoApproveToolNames,
+		getAutoApproveToolNames,
+		saveServerAutoApproveToolNames,
+		setAutoApproveToolNames
+	} from '$lib/agent-auto-approve';
+	import {
+		actionTitleForTool,
+		applyAgentSseEvent,
+		consumeAgentSseStream,
+		consumeFinalizedAssistant,
+		createInitialAgentRunStreamState,
+		resetAgentRunStreamState,
+		summarizeToolArgs,
+		type AgentSseEvent
+	} from '$lib/agent-protocol';
 	import { agentSessions } from '$lib/hooks/agent-sessions.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
@@ -45,26 +60,13 @@
 	/** True while polling a run that started outside this mount (no live SSE attached). */
 	let remoteRunPending = $state(false);
 	let error = $state<string | null>(null);
-	type ToolActionStep = {
-		label: string;
-		toolName: string;
-		args?: Record<string, unknown>;
-		thinking?: string;
-		done: boolean;
-		expanded: boolean;
-	};
-
-	let streamingToolSteps = $state<ToolActionStep[]>([]);
-	/** Holds the model's reasoning text emitted just before a tool_start event. */
-	let pendingThinking = $state<string>('');
-	/** Text being streamed token-by-token for the current assistant reply. */
-	let streamingText = $state('');
-	let pendingToolConfirmation = $state<PendingToolConfirmation | null>(null);
+	let streamState = $state(createInitialAgentRunStreamState());
 	let scrollEl = $state<HTMLElement | null>(null);
 	let loadingConversation = $state(false);
 	let editingUserId = $state<string | null>(null);
 	let editDraft = $state('');
 	let maxHistoryMessages = $state(40);
+	let autoApproveToolNames = $state<string[]>(getAutoApproveToolNames());
 	let lastSendAt = $state(0);
 	let pendingScrollMessageId = $state<string | null>(null);
 	/** Aborts in-flight ask/confirm HTTP and SSE stream for the current run. */
@@ -83,6 +85,20 @@
 				activeRunPollTimer = null;
 			}
 		};
+	});
+
+	$effect(() => {
+		const workspace = workspaceId;
+		if (!workspace) return;
+		void fetchServerAutoApproveToolNames(workspace)
+			.then((names) => {
+				if (!sseGuard.active) return;
+				autoApproveToolNames = names;
+				setAutoApproveToolNames(names);
+			})
+			.catch(() => {
+				// Keep local fallback
+			});
 	});
 
 	function clearActiveRunPoll() {
@@ -117,224 +133,57 @@
 		);
 	}
 
-	// ---------------------------------------------------------------------------
-	// SSE stream parser — reads a fetch Response body as SSE events
-	// ---------------------------------------------------------------------------
-
-	async function consumeSSEStream(response: Response, signal: AbortSignal): Promise<void> {
-		const reader = response.body?.getReader();
-		if (!reader) throw new Error('No response body');
-
-		const decoder = new TextDecoder();
-		let buffer = '';
-
-		try {
-			while (true) {
-				if (signal.aborted) break;
-				const { done, value } = await reader.read();
-				if (done) break;
-
-				buffer += decoder.decode(value, { stream: true });
-				const lines = buffer.split('\n');
-				buffer = lines.pop() ?? '';
-
-				let currentEvent = '';
-				for (const line of lines) {
-					if (line.startsWith('event: ')) {
-						currentEvent = line.slice(7).trim();
-					} else if (line.startsWith('data: ')) {
-						const dataStr = line.slice(6);
-						try {
-							const data = JSON.parse(dataStr);
-							handleSSEEvent(currentEvent, data);
-						} catch {
-							// malformed JSON — skip
-						}
-						currentEvent = '';
-					} else if (line.startsWith(': ')) {
-						// comment / keepalive — skip
-					}
-				}
-			}
-		} finally {
-			await reader.cancel();
-		}
-	}
-
-	function handleSSEEvent(event: string, data: Record<string, unknown>): void {
+	function handleSSEEvent(event: AgentSseEvent): void {
 		if (!sseGuard.active) return;
-		switch (event) {
-			case 'run_started': {
-				if (typeof data.chatId === 'string') {
-					activeChatId = data.chatId;
-				}
-				if (typeof data.userMessageId === 'string') {
-					const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
-					if (lastUserIdx !== -1) {
-						messages = messages.map((m, i) =>
-							i === lastUserIdx ? { ...m, id: data.userMessageId as string } : m
-						);
-					}
-				}
-				break;
-			}
-			case 'text_delta': {
-				if (typeof data.delta === 'string') {
-					streamingText += data.delta;
-				}
-				break;
-			}
-			case 'reasoning': {
-				if (typeof data.text === 'string') {
-					pendingThinking += (pendingThinking ? '\n' : '') + data.text;
-				}
-				break;
-			}
-			case 'tool_start': {
-				if (typeof data.tool === 'string') {
-					pushToolStart(
-						data.tool,
-						data.args as Record<string, unknown> | undefined,
-						pendingThinking || undefined
+		streamState = applyAgentSseEvent(streamState, event);
+		if (event.type === 'run_started') {
+			if (event.chatId) activeChatId = event.chatId;
+			if (event.userMessageId) {
+				const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
+				if (lastUserIdx !== -1) {
+					messages = messages.map((m, i) =>
+						i === lastUserIdx ? { ...m, id: event.userMessageId as string } : m
 					);
 				}
-				break;
-			}
-			case 'tool_done': {
-				markLastToolDone();
-				break;
-			}
-			case 'confirmation': {
-				pendingToolConfirmation = {
-					pendingId: data.pendingId as string,
-					tool: data.tool as string,
-					args: (data.args ?? {}) as Record<string, unknown>,
-					chatId:
-						typeof data.chatId === 'string'
-							? data.chatId
-							: typeof activeChatId === 'string'
-								? activeChatId
-								: undefined
-				};
-				break;
-			}
-			case 'meta': {
-				// Finalize the streamed message with metadata
-				if (streamingText.trim()) {
-					const assistantMsg: ChatMessage = {
-						id: (data.messageId as string) ?? crypto.randomUUID(),
-						role: 'assistant',
-						content: streamingText,
-						status: 'success',
-						sources: data.sources as Source[] | undefined,
-						toolCalls: data.toolCalls as ToolCallSummary[] | undefined,
-						model: data.model as string | undefined,
-						iterations: data.iterations as number | undefined,
-						assistantVariants: [streamingText],
-						variantIndex: 0
-					};
-					messages = [...messages, assistantMsg];
-				}
-				break;
-			}
-			case 'error': {
-				const msg = typeof data.message === 'string' ? data.message : 'Agent error';
-				error = msg;
-				break;
-			}
-			case 'done': {
-				// Stream finished
-				break;
 			}
 		}
-	}
-
-	function toolLabelForName(name: string): string {
-		const map: Record<string, string> = {
-			list_directory: 'Browsing files',
-			search: 'Searching files',
-			read_file: 'Reading file',
-			get_file_info: 'Checking file',
-			search_by_metadata: 'Filtering files',
-			delete_file: 'Delete (needs your approval)',
-			move: 'Move (needs your approval)',
-			copy_file: 'Copy (needs your approval)',
-			mkdir: 'Create folder (needs your approval)'
-		};
-		return map[name] ?? `Using ${name}`;
-	}
-
-	function pushToolStart(name: string, args?: Record<string, unknown>, thinking?: string) {
-		streamingToolSteps = [
-			...streamingToolSteps,
-			{
-				label: toolLabelForName(name),
-				toolName: name,
-				args,
-				thinking,
-				done: false,
-				expanded: false
-			}
-		];
-		pendingThinking = '';
+		if (streamState.error) {
+			error = streamState.error;
+		}
+		const finalized = consumeFinalizedAssistant(streamState);
+		if (finalized.finalized) {
+			const assistantMsg: ChatMessage = {
+				id: finalized.finalized.messageId ?? crypto.randomUUID(),
+				role: 'assistant',
+				content: finalized.finalized.content,
+				status: 'success',
+				sources: finalized.finalized.sources,
+				toolCalls: finalized.finalized.toolCalls,
+				model: finalized.finalized.model,
+				iterations: finalized.finalized.iterations,
+				assistantVariants: [finalized.finalized.content],
+				variantIndex: 0
+			};
+			messages = [...messages, assistantMsg];
+		}
+		streamState = finalized.next;
 	}
 
 	function toggleStepExpanded(stepIndex: number) {
-		streamingToolSteps = streamingToolSteps.map((s, i) =>
-			i === stepIndex ? { ...s, expanded: !s.expanded } : s
-		);
-	}
-
-	function markLastToolDone() {
-		for (let i = streamingToolSteps.length - 1; i >= 0; i--) {
-			if (!streamingToolSteps[i].done) {
-				streamingToolSteps = streamingToolSteps.map((s, j) => (j === i ? { ...s, done: true } : s));
-				break;
-			}
-		}
-	}
-
-	function actionTitleForTool(name: string): string {
-		const map: Record<string, string> = {
-			delete_file: 'Delete',
-			move: 'Move',
-			copy_file: 'Copy',
-			mkdir: 'Create folder'
+		streamState = {
+			...streamState,
+			toolSteps: streamState.toolSteps.map((s, i) =>
+				i === stepIndex ? { ...s, expanded: !s.expanded } : s
+			)
 		};
-		return map[name] ?? name;
 	}
 
 	let autoApproveThisKind = $state(false);
 
 	$effect(() => {
-		void pendingToolConfirmation?.pendingId;
+		void streamState.pendingToolConfirmation?.pendingId;
 		autoApproveThisKind = false;
 	});
-
-	function summarizeToolArgs(tool: string, args: Record<string, unknown>): string {
-		try {
-			if (tool === 'delete_file' && typeof args.path === 'string') return args.path;
-			if (tool === 'mkdir' && typeof args.path === 'string') return args.path;
-			if (
-				(tool === 'move' || tool === 'copy_file') &&
-				typeof args.source_path === 'string' &&
-				typeof args.destination_path === 'string'
-			) {
-				return `${args.source_path} → ${args.destination_path}`;
-			}
-			if (
-				tool === 'move' &&
-				Array.isArray(args.source_paths) &&
-				typeof args.destination_directory === 'string'
-			) {
-				const n = args.source_paths.length;
-				return `${n} path(s) → ${args.destination_directory}`;
-			}
-			return JSON.stringify(args, null, 2);
-		} catch {
-			return String(tool);
-		}
-	}
 
 	function scrollToBottom() {
 		const el = scrollEl;
@@ -358,9 +207,9 @@
 		agentRunAbortController = null;
 		loading = false;
 		clearActiveRunPoll();
-		streamingToolSteps = [];
-		streamingText = '';
-		pendingThinking = '';
+		streamState = resetAgentRunStreamState(streamState, {
+			activeChatId: activeChatId ?? undefined
+		});
 		activeAgentStatus = 'done';
 	}
 
@@ -369,8 +218,8 @@
 		void messages;
 		void loading;
 		void remoteRunPending;
-		void streamingToolSteps;
-		void streamingText;
+		void streamState.toolSteps;
+		void streamState.streamingText;
 		scrollToBottom();
 	});
 
@@ -408,10 +257,9 @@
 		loading = true;
 		activeAgentStatus = 'working';
 		error = null;
-		streamingToolSteps = [];
-		streamingText = '';
-		pendingThinking = '';
-		pendingToolConfirmation = null;
+		streamState = resetAgentRunStreamState(streamState, {
+			activeChatId: activeChatId ?? undefined
+		});
 
 		agentRunAbortController?.abort();
 		agentRunAbortController = new AbortController();
@@ -430,7 +278,7 @@
 					filters: { limit: 16 },
 					regenerate: options.regenerate === true,
 					maxHistoryMessages: maxHistoryMessages,
-					autoApproveToolNames: getAutoApproveToolNames()
+					autoApproveToolNames: autoApproveToolNames
 				}),
 				signal
 			});
@@ -443,25 +291,25 @@
 			}
 
 			// Consume the SSE stream
-			await consumeSSEStream(response, signal);
+			await consumeAgentSseStream(response, { signal, onEvent: handleSSEEvent });
 
 			// Stream finished
 			if (!sseGuard.active) return;
 			loading = false;
-			streamingToolSteps = [];
-			streamingText = '';
-			pendingThinking = '';
+			streamState = resetAgentRunStreamState(streamState, {
+				activeChatId: activeChatId ?? undefined
+			});
 			agentRunAbortController = null;
-			activeAgentStatus = pendingToolConfirmation ? 'done' : 'done';
+			activeAgentStatus = streamState.pendingToolConfirmation ? 'done' : 'done';
 			onListRefresh?.();
 		} catch (err) {
 			if (isAbortError(err)) {
 				if (sseGuard.active) {
 					loading = false;
 					activeAgentStatus = 'done';
-					streamingToolSteps = [];
-					streamingText = '';
-					pendingThinking = '';
+					streamState = resetAgentRunStreamState(streamState, {
+						activeChatId: activeChatId ?? undefined
+					});
 				}
 				agentRunAbortController = null;
 				return;
@@ -469,9 +317,9 @@
 			if (sseGuard.active) {
 				loading = false;
 				activeAgentStatus = 'done';
-				streamingToolSteps = [];
-				streamingText = '';
-				pendingThinking = '';
+				streamState = resetAgentRunStreamState(streamState, {
+					activeChatId: activeChatId ?? undefined
+				});
 				const msg = err instanceof Error ? err.message : 'An error occurred';
 				error = msg;
 			}
@@ -500,21 +348,32 @@
 	}
 
 	async function submitToolConfirmation(approved: boolean, rememberAutoApprove?: boolean) {
-		const pending = pendingToolConfirmation;
+		const pending = streamState.pendingToolConfirmation;
 		if (!pending || loading || remoteRunPending) return;
 
 		if (approved && rememberAutoApprove) {
-			addAutoApproveToolName(pending.tool);
+			autoApproveToolNames = [...new Set([...autoApproveToolNames, pending.tool])];
+			setAutoApproveToolNames(autoApproveToolNames);
+			if (workspaceId) {
+				void saveServerAutoApproveToolNames(workspaceId, autoApproveToolNames)
+					.then((saved) => {
+						if (!sseGuard.active) return;
+						autoApproveToolNames = saved;
+						setAutoApproveToolNames(saved);
+					})
+					.catch(() => {
+						// keep local fallback
+					});
+			}
 		}
-		const autoApproveToolNames = getAutoApproveToolNames();
 
 		loading = true;
 		activeAgentStatus = 'working';
 		error = null;
-		streamingToolSteps = [];
-		streamingText = '';
-		pendingThinking = '';
-		pendingToolConfirmation = null;
+		streamState = resetAgentRunStreamState(streamState, {
+			activeChatId: activeChatId ?? undefined,
+			pendingToolConfirmation: null
+		});
 
 		agentRunAbortController?.abort();
 		agentRunAbortController = new AbortController();
@@ -544,13 +403,13 @@
 			}
 
 			// Consume the SSE stream
-			await consumeSSEStream(response, signal);
+			await consumeAgentSseStream(response, { signal, onEvent: handleSSEEvent });
 
 			if (!sseGuard.active) return;
 			loading = false;
-			streamingToolSteps = [];
-			streamingText = '';
-			pendingThinking = '';
+			streamState = resetAgentRunStreamState(streamState, {
+				activeChatId: activeChatId ?? undefined
+			});
 			agentRunAbortController = null;
 			activeAgentStatus = 'done';
 			onListRefresh?.();
@@ -559,9 +418,9 @@
 				if (sseGuard.active) {
 					loading = false;
 					activeAgentStatus = 'done';
-					streamingToolSteps = [];
-					streamingText = '';
-					pendingThinking = '';
+					streamState = resetAgentRunStreamState(streamState, {
+						activeChatId: activeChatId ?? undefined
+					});
 				}
 				agentRunAbortController = null;
 				return;
@@ -569,9 +428,9 @@
 			if (sseGuard.active) {
 				loading = false;
 				activeAgentStatus = 'done';
-				streamingToolSteps = [];
-				streamingText = '';
-				pendingThinking = '';
+				streamState = resetAgentRunStreamState(streamState, {
+					activeChatId: activeChatId ?? undefined
+				});
 				error = err instanceof Error ? err.message : 'An error occurred';
 			}
 			agentRunAbortController = null;
@@ -645,7 +504,10 @@
 			if (run.status === 'awaiting_confirmation' && run.pendingToolConfirmation) {
 				clearActiveRunPoll();
 				if (!sseGuard.active) return;
-				pendingToolConfirmation = run.pendingToolConfirmation;
+				streamState = {
+					...streamState,
+					pendingToolConfirmation: run.pendingToolConfirmation
+				};
 				activeAgentStatus = 'done';
 				return;
 			}
@@ -672,7 +534,10 @@
 				return;
 			}
 			if (run.status === 'awaiting_confirmation' && run.pendingToolConfirmation) {
-				pendingToolConfirmation = run.pendingToolConfirmation;
+				streamState = {
+					...streamState,
+					pendingToolConfirmation: run.pendingToolConfirmation
+				};
 				activeAgentStatus = 'done';
 				return;
 			}
@@ -695,8 +560,9 @@
 		clearActiveRunPoll();
 		loadingConversation = true;
 		error = null;
-		streamingToolSteps = [];
-		pendingToolConfirmation = null;
+		streamState = resetAgentRunStreamState(streamState, {
+			activeChatId: activeChatId ?? undefined
+		});
 		editingUserId = null;
 		try {
 			if (!apiRoot) {
@@ -725,9 +591,9 @@
 		activeChatId = null;
 		messages = [];
 		error = null;
-		streamingToolSteps = [];
-		streamingText = '';
-		pendingToolConfirmation = null;
+		streamState = resetAgentRunStreamState(streamState, {
+			activeChatId: undefined
+		});
 		editingUserId = null;
 	}
 
@@ -1026,9 +892,9 @@
 				</div>
 			{/if}
 
-			{#if streamingToolSteps.length > 0}
+			{#if streamState.toolSteps.length > 0}
 				<ul class="mt-2 space-y-1" aria-live="polite" aria-label="Tool activity">
-					{#each streamingToolSteps as step, stepIndex (stepIndex)}
+					{#each streamState.toolSteps as step, stepIndex (stepIndex)}
 						<li class="flex flex-col">
 							<button
 								type="button"
@@ -1081,14 +947,14 @@
 				</ul>
 			{/if}
 
-			{#if streamingText}
+			{#if streamState.streamingText}
 				<div class="mt-2 border-t border-border/60 pt-4">
 					<div class="prose prose-sm dark:prose-invert max-w-none">
 						<ChatMessageBubble
 							message={{
 								id: '__streaming__',
 								role: 'assistant',
-								content: streamingText,
+								content: streamState.streamingText,
 								status: 'success'
 							}}
 							busy={true}
@@ -1097,7 +963,7 @@
 				</div>
 			{/if}
 
-			{#if (loading || remoteRunPending) && !streamingText && !streamingToolSteps.some((s) => !s.done)}
+			{#if (loading || remoteRunPending) && !streamState.streamingText && !streamState.toolSteps.some((s) => !s.done)}
 				<div class="mt-2 flex w-full border-t border-border/60 pt-4">
 					<div class="flex w-full items-center gap-3 py-2">
 						<div class="flex gap-1.5">
@@ -1135,7 +1001,7 @@
 		</div>
 	</div>
 
-	{#if pendingToolConfirmation}
+	{#if streamState.pendingToolConfirmation}
 		<div class="shrink-0 border-t border-border/60 bg-muted/25 px-3 py-3">
 			<div
 				class="mx-auto max-w-3xl rounded-xl border border-amber-200/90 bg-amber-50/95 px-4 py-3 shadow-sm dark:border-amber-900/45 dark:bg-amber-950/35"
@@ -1143,9 +1009,12 @@
 				<p class="text-sm font-medium text-foreground">Confirm file action</p>
 				<p class="mt-1 font-mono text-[11px] leading-relaxed break-all text-muted-foreground">
 					<span class="font-sans font-medium text-foreground/90"
-						>{actionTitleForTool(pendingToolConfirmation.tool)}</span
+						>{actionTitleForTool(streamState.pendingToolConfirmation.tool)}</span
 					>
-					· {summarizeToolArgs(pendingToolConfirmation.tool, pendingToolConfirmation.args)}
+					· {summarizeToolArgs(
+						streamState.pendingToolConfirmation.tool,
+						streamState.pendingToolConfirmation.args
+					)}
 				</p>
 				<label
 					class="mt-3 flex cursor-pointer items-start gap-2.5 text-xs leading-snug text-muted-foreground"
@@ -1158,7 +1027,7 @@
 					<span>
 						Auto-approve future
 						<span class="font-medium text-foreground/90"
-							>{actionTitleForTool(pendingToolConfirmation.tool)}</span
+							>{actionTitleForTool(streamState.pendingToolConfirmation.tool)}</span
 						>
 						actions in this browser (skip this prompt next time)
 					</span>

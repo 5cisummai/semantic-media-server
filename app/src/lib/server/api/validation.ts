@@ -161,6 +161,12 @@ export const confirmToolSchema = z
 	})
 	.strict();
 
+export const updateAgentPreferencesSchema = z
+	.object({
+		autoApproveToolNames: z.unknown().optional()
+	})
+	.strict();
+
 export const createChatSchema = z
 	.object({
 		title: z.string().optional()

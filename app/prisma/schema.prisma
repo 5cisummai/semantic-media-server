@@ -70,6 +70,7 @@ model User {
   workspaceFiles           WorkspaceFile[]
   personalFolder           PersonalFolder?
   fsActions                FileSystemAction[]
+  agentPreferences         AgentPreference[]
 }
 
 // ---------------------------------------------------------------------------
@@ -119,6 +120,7 @@ model Workspace {
   agentRuns  AgentRun[]
   files      WorkspaceFile[]
   fsActions  FileSystemAction[]
+  agentPreferences AgentPreference[]
 }
 
 model WorkspaceMember {
@@ -133,6 +135,21 @@ model WorkspaceMember {
 
   @@unique([userId, workspaceId])
   @@index([workspaceId])
+}
+
+model AgentPreference {
+  id                   String   @id @default(cuid())
+  userId               String
+  workspaceId          String
+  autoApproveToolNames Json     @default("[]")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId, userId])
 }
 
 // ---------------------------------------------------------------------------

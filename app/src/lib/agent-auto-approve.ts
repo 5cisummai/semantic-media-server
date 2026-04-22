@@ -1,3 +1,5 @@
+import { apiFetch } from '$lib/api-fetch';
+
 const STORAGE_KEY = 'brain.agent.autoApproveToolNames';
 const MAX_TOOLS = 32;
 
@@ -91,29 +93,44 @@ function toolsForSetting(id: AutoApproveSettingId): string[] {
 
 const LEGACY_MOVE_NAMES = ['move_file', 'move_files'] as const;
 
+export function isAutoApproveSettingEnabledInList(
+	id: AutoApproveSettingId,
+	names: string[]
+): boolean {
+	if (id === 'move') {
+		return names.includes('move') || (names.includes('move_file') && names.includes('move_files'));
+	}
+	return toolsForSetting(id).every((tool) => names.includes(tool));
+}
+
+export function setAutoApproveSettingInList(
+	id: AutoApproveSettingId,
+	enabled: boolean,
+	names: string[]
+): string[] {
+	const tools = toolsForSetting(id);
+	let out = normalizeList(names);
+	if (id === 'move') {
+		out = out.filter(
+			(name) =>
+				name !== 'move' && !LEGACY_MOVE_NAMES.includes(name as (typeof LEGACY_MOVE_NAMES)[number])
+		);
+	} else {
+		out = out.filter((name) => !tools.includes(name));
+	}
+	if (enabled) {
+		out = normalizeList([...out, ...tools]);
+	}
+	return out;
+}
+
 /** True when every tool for this setting is present in storage. */
 export function isAutoApproveSettingEnabled(id: AutoApproveSettingId): boolean {
-	const cur = parseStored();
-	if (id === 'move') {
-		return cur.includes('move') || (cur.includes('move_file') && cur.includes('move_files'));
-	}
-	return toolsForSetting(id).every((t) => cur.includes(t));
+	return isAutoApproveSettingEnabledInList(id, parseStored());
 }
 
 export function setAutoApproveSettingEnabled(id: AutoApproveSettingId, enabled: boolean): void {
-	const tools = toolsForSetting(id);
-	let cur = parseStored();
-	if (id === 'move') {
-		cur = cur.filter(
-			(x) => x !== 'move' && !LEGACY_MOVE_NAMES.includes(x as (typeof LEGACY_MOVE_NAMES)[number])
-		);
-	} else {
-		cur = cur.filter((x) => !tools.includes(x));
-	}
-	if (enabled) {
-		cur = [...cur, ...tools];
-	}
-	persist(cur);
+	persist(setAutoApproveSettingInList(id, enabled, parseStored()));
 }
 
 export function addAutoApproveToolName(toolName: string): void {
@@ -127,4 +144,36 @@ export function addAutoApproveToolName(toolName: string): void {
 	const cur = parseStored();
 	if (cur.includes(t)) return;
 	persist([...cur, t]);
+}
+
+export function setAutoApproveToolNames(names: string[]): void {
+	persist(normalizeList(names));
+}
+
+export async function fetchServerAutoApproveToolNames(workspaceId: string): Promise<string[]> {
+	const res = await apiFetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/agent/settings`);
+	if (!res.ok) {
+		throw new Error(`Failed to load assistant preferences (${res.status})`);
+	}
+	const data = (await res.json()) as { autoApproveToolNames?: unknown };
+	const list = Array.isArray(data.autoApproveToolNames) ? data.autoApproveToolNames : [];
+	return normalizeList(list.filter((x): x is string => typeof x === 'string'));
+}
+
+export async function saveServerAutoApproveToolNames(
+	workspaceId: string,
+	names: string[]
+): Promise<string[]> {
+	const payload = normalizeList(names);
+	const res = await apiFetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/agent/settings`, {
+		method: 'PUT',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ autoApproveToolNames: payload })
+	});
+	if (!res.ok) {
+		throw new Error(`Failed to save assistant preferences (${res.status})`);
+	}
+	const data = (await res.json()) as { autoApproveToolNames?: unknown };
+	const saved = Array.isArray(data.autoApproveToolNames) ? data.autoApproveToolNames : payload;
+	return normalizeList(saved.filter((x): x is string => typeof x === 'string'));
 }

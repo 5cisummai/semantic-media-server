@@ -18,6 +18,7 @@ export {
 	ingestDirectorySchema,
 	askRequestSchema,
 	confirmToolSchema,
+	updateAgentPreferencesSchema,
 	createChatSchema,
 	truncateChatSchema,
 	workspaceSelectionSchema,
