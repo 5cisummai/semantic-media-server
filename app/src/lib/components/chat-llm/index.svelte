@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { tick, untrack } from 'svelte';
 	import { apiFetch } from '$lib/api-fetch';
 	import { addAutoApproveToolName, getAutoApproveToolNames } from '$lib/agent-auto-approve';
@@ -22,13 +23,16 @@
 		workspaceId,
 		activeChatId = $bindable<string | null>(null),
 		activeAgentStatus = $bindable<'idle' | 'working' | 'done'>('idle'),
-		onListRefresh
+		onListRefresh,
+		toolbarLeading
 	}: {
 		/** Active workspace — all brain/chat APIs are scoped under `/api/workspaces/:id`. */
 		workspaceId: string | null;
 		activeChatId?: string | null;
 		activeAgentStatus?: 'idle' | 'working' | 'done';
 		onListRefresh?: () => void;
+		/** Prepended to the chat toolbar (e.g. sessions list toggle on /chat). */
+		toolbarLeading?: Snippet;
 	} = $props();
 
 	const apiRoot = $derived(
@@ -945,6 +949,7 @@
 	<div class="shrink-0 border-border/60">
 		<ChatToolbar
 			bind:maxHistoryMessages
+			leading={toolbarLeading}
 			onExportJson={exportJson}
 			onExportMarkdown={exportMarkdown}
 			showStop={loading}

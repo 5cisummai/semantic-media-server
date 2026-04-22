@@ -1,6 +1,7 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
 import type { UserRole } from '@prisma/client';
+import type { IncomingMessage } from 'node:http';
 
 declare global {
 	namespace App {
@@ -20,7 +21,10 @@ declare global {
 			};
 		}
 		// interface PageState {}
-		// interface Platform {}
+		/** Set by `@sveltejs/adapter-node` in production; absent in Vite dev. */
+		interface Platform {
+			req?: IncomingMessage;
+		}
 	}
 }
 

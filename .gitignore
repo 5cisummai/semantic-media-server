@@ -38,8 +38,6 @@ pnpm-debug.log*
 # Vectraspace generated Docker Compose override
 .vectraspace.compose.override.yml
 
-
-
 # Python
 __pycache__/
 *.pyc
@@ -54,3 +52,4 @@ models/
 jina-llama.cpp/
 
 .cache/
+.vectraspace-thumbs/

@@ -9,14 +9,16 @@
 	const MEDIA_EXTENSIONS = {
 		video: ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv', 'ogv'],
 		audio: ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'wma'],
-		image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'ico']
+		image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'ico'],
+		pdf: ['pdf']
 	};
 
-	function getMediaType(path: string): 'video' | 'audio' | 'image' | null {
+	function getMediaType(path: string): 'video' | 'audio' | 'image' | 'pdf' | null {
 		const ext = path.split('.').pop()?.toLowerCase() ?? '';
 		if (MEDIA_EXTENSIONS.video.includes(ext)) return 'video';
 		if (MEDIA_EXTENSIONS.audio.includes(ext)) return 'audio';
 		if (MEDIA_EXTENSIONS.image.includes(ext)) return 'image';
+		if (MEDIA_EXTENSIONS.pdf.includes(ext)) return 'pdf';
 		return null;
 	}
 
@@ -55,7 +57,11 @@
 			<h1 class="truncate text-sm font-medium text-white">{fileName}</h1>
 		</header>
 
-		<main class="flex flex-1 items-center justify-center overflow-hidden p-4">
+		<main
+			class="flex min-h-0 flex-1 overflow-hidden p-4 {mediaType === 'pdf'
+				? 'flex-col'
+				: 'items-center justify-center'}"
+		>
 			{#if mediaType === 'video'}
 				<video src={mediaUrl} class="max-h-full max-w-full object-contain" controls autoplay>
 					<track kind="captions" />
@@ -71,6 +77,12 @@
 				</div>
 			{:else if mediaType === 'image'}
 				<img src={mediaUrl} alt={fileName} class="max-h-full max-w-full object-contain" />
+			{:else if mediaType === 'pdf'}
+				<iframe
+					src={mediaUrl}
+					title={fileName}
+					class="min-h-0 w-full flex-1 rounded-lg border border-white/10 bg-muted/30"
+				></iframe>
 			{/if}
 		</main>
 	</div>

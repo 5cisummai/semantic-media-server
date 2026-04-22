@@ -13,6 +13,7 @@ export type ThumbnailOptions = {
 	quality: number;
 	sourceMtimeMs: number;
 	sourceSize: number;
+	cacheRootPath: string;
 };
 
 export type ThumbnailResult = {
@@ -23,22 +24,20 @@ export type ThumbnailResult = {
 
 const DEFAULT_MEMORY_CACHE_BYTES = 128 * 1024 * 1024;
 const DEFAULT_DISK_CACHE_BYTES = 512 * 1024 * 1024;
-const DEFAULT_CACHE_DIR = path.resolve(process.cwd(), '.cache/thumbs');
+const DEFAULT_HIDDEN_CACHE_DIRNAME = '.vectraspace-thumbs';
 
 const memoryCacheMaxBytes = readPositiveInt(
 	env.THUMB_MEMORY_CACHE_MAX_BYTES,
 	DEFAULT_MEMORY_CACHE_BYTES
 );
 const diskCacheMaxBytes = readPositiveInt(env.THUMB_DISK_CACHE_MAX_BYTES, DEFAULT_DISK_CACHE_BYTES);
-const diskCacheDir = env.THUMB_CACHE_DIR?.trim()
-	? path.resolve(env.THUMB_CACHE_DIR.trim())
-	: DEFAULT_CACHE_DIR;
+const hiddenCacheDirName = env.THUMB_CACHE_DIRNAME?.trim() || DEFAULT_HIDDEN_CACHE_DIRNAME;
 
 const memoryCache = new Map<string, Buffer>();
 let memoryCacheBytes = 0;
 
 const inFlight = new Map<string, Promise<Buffer>>();
-let diskInitPromise: Promise<void> | null = null;
+const diskInitPromises = new Map<string, Promise<void>>();
 
 function readPositiveInt(raw: string | undefined, fallback: number): number {
 	const value = Number.parseInt(raw ?? '', 10);
@@ -95,22 +94,29 @@ function readMemoryCache(cacheKey: string): Buffer | null {
 
 function cacheFilePath(cacheKey: string): string {
 	const digest = hashKey(cacheKey);
-	return path.join(diskCacheDir, digest.slice(0, 2), `${digest}.webp`);
+	return path.join(digest.slice(0, 2), `${digest}.webp`);
 }
 
-async function ensureDiskCacheDir(): Promise<void> {
+function getDiskCacheDir(cacheRootPath: string): string {
+	return path.join(cacheRootPath, hiddenCacheDirName);
+}
+
+async function ensureDiskCacheDir(cacheRootPath: string): Promise<void> {
 	if (diskCacheMaxBytes <= 0) return;
-	if (!diskInitPromise) {
-		diskInitPromise = fs.mkdir(diskCacheDir, { recursive: true }).then(() => undefined);
+	const cacheDir = getDiskCacheDir(cacheRootPath);
+	let initPromise = diskInitPromises.get(cacheDir);
+	if (!initPromise) {
+		initPromise = fs.mkdir(cacheDir, { recursive: true }).then(() => undefined);
+		diskInitPromises.set(cacheDir, initPromise);
 	}
-	await diskInitPromise;
+	await initPromise;
 }
 
-async function readDiskCache(cacheKey: string): Promise<Buffer | null> {
+async function readDiskCache(cacheKey: string, cacheRootPath: string): Promise<Buffer | null> {
 	if (diskCacheMaxBytes <= 0) return null;
-	await ensureDiskCacheDir();
+	await ensureDiskCacheDir(cacheRootPath);
 
-	const filePath = cacheFilePath(cacheKey);
+	const filePath = path.join(getDiskCacheDir(cacheRootPath), cacheFilePath(cacheKey));
 	try {
 		const data = await fs.readFile(filePath);
 		const now = new Date();
@@ -121,15 +127,15 @@ async function readDiskCache(cacheKey: string): Promise<Buffer | null> {
 	}
 }
 
-async function writeDiskCache(cacheKey: string, buffer: Buffer): Promise<void> {
+async function writeDiskCache(cacheKey: string, cacheRootPath: string, buffer: Buffer): Promise<void> {
 	if (diskCacheMaxBytes <= 0) return;
-	await ensureDiskCacheDir();
+	await ensureDiskCacheDir(cacheRootPath);
 
-	const filePath = cacheFilePath(cacheKey);
+	const filePath = path.join(getDiskCacheDir(cacheRootPath), cacheFilePath(cacheKey));
 	const parent = path.dirname(filePath);
 	await fs.mkdir(parent, { recursive: true });
 	await fs.writeFile(filePath, buffer);
-	await pruneDiskCache();
+	await pruneDiskCache(cacheRootPath);
 }
 
 type FileStat = { path: string; size: number; mtimeMs: number };
@@ -160,9 +166,9 @@ async function collectCacheFiles(dir: string): Promise<FileStat[]> {
 	return collected;
 }
 
-async function pruneDiskCache(): Promise<void> {
+async function pruneDiskCache(cacheRootPath: string): Promise<void> {
 	if (diskCacheMaxBytes <= 0) return;
-	const files = await collectCacheFiles(diskCacheDir);
+	const files = await collectCacheFiles(getDiskCacheDir(cacheRootPath));
 	let totalBytes = files.reduce((sum, file) => sum + file.size, 0);
 	if (totalBytes <= diskCacheMaxBytes) return;
 
@@ -207,7 +213,7 @@ export async function getOrCreateImageThumbnail(
 		return { buffer: memoryHit, cacheStatus: 'memory-hit', etag };
 	}
 
-	const diskHit = await readDiskCache(cacheKey);
+	const diskHit = await readDiskCache(cacheKey, options.cacheRootPath);
 	if (diskHit) {
 		pushMemoryCache(cacheKey, diskHit);
 		return { buffer: diskHit, cacheStatus: 'disk-hit', etag };
@@ -222,7 +228,7 @@ export async function getOrCreateImageThumbnail(
 	}
 	const generated = await pending;
 	pushMemoryCache(cacheKey, generated);
-	await writeDiskCache(cacheKey, generated);
+	await writeDiskCache(cacheKey, options.cacheRootPath, generated);
 
 	return { buffer: generated, cacheStatus: 'generated', etag };
 }

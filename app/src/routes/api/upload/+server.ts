@@ -1,6 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import fs from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
+import { Readable } from 'node:stream';
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import busboy from 'busboy';
@@ -24,7 +26,9 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 	}
 
 	const nodeReq = platform?.req;
-	if (!nodeReq) {
+	// adapter-node passes `platform.req` in production; Vite dev does not, but the
+	// same multipart body is available on the Fetch API `request.body` stream.
+	if (!nodeReq && !request.body) {
 		throw error(500, 'Streaming upload not supported in this environment');
 	}
 
@@ -78,7 +82,13 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 		});
 
 		bb.on('error', (err) => reject(err));
-		nodeReq.pipe(bb);
+		if (nodeReq) {
+			nodeReq.pipe(bb);
+		} else if (request.body) {
+			Readable.fromWeb(request.body as NodeReadableStream).pipe(bb);
+		} else {
+			reject(new Error('Missing request body'));
+		}
 	}).catch(async (err) => {
 		await fs.unlink(tmpPath).catch(() => undefined);
 		throw err instanceof Error && 'code' in err && err.code === 413

@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import * as path from '$lib/server/paths';
-import { resolveMediaPath } from '$lib/server/services/storage';
+import { isPersonalFolderRoot, resolveMediaPath } from '$lib/server/services/storage';
 import { deleteSemanticEntryByRelativePath } from '$lib/server/semantic';
 import { db } from '$lib/server/db';
 import { requireAuth, requirePathAccess, audit } from '$lib/server/api';
@@ -41,9 +41,8 @@ export const DELETE: RequestHandler = async ({ params, locals, request }) => {
 		throw error(403, 'Deleting a media root is not allowed');
 	}
 
-	// Prevent deleting a personal folder root (even your own)
-	const personalFolder = await db.personalFolder.findUnique({ where: { path: relativePath } });
-	if (personalFolder) {
+	// Prevent deleting a personal folder root (virtual path, legacy DB path, or physical `.personal_*`)
+	if (await isPersonalFolderRoot(relativePath)) {
 		throw error(403, 'Personal folders cannot be deleted');
 	}
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import Settings2Icon from '@lucide/svelte/icons/settings-2';
 	import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
@@ -20,7 +21,8 @@
 		onExportMarkdown,
 		onStopAgent,
 		showStop = false,
-		disabled = false
+		disabled = false,
+		leading
 	}: {
 		maxHistoryMessages?: number;
 		onExportJson?: () => void;
@@ -28,6 +30,8 @@
 		onStopAgent?: () => void;
 		showStop?: boolean;
 		disabled?: boolean;
+		/** Optional controls shown before the toolbar actions (e.g. chat list toggle). */
+		leading?: Snippet;
 	} = $props();
 
 	const presets = [10, 20, 40, 80];
@@ -35,8 +39,12 @@
 </script>
 
 <div
-	class="flex flex-wrap items-center justify-end gap-2 border-border/50 px-3 py-2 text-xs text-muted-foreground"
+	class="flex flex-wrap items-center gap-2 border-border/50 px-3 py-2 text-xs text-muted-foreground"
 >
+	<div class="me-auto flex min-w-0 flex-wrap items-center gap-2">
+		{@render leading?.()}
+	</div>
+	<div class="flex flex-wrap items-center justify-end gap-2">
 	{#if showStop}
 		<Button
 			type="button"
@@ -138,4 +146,5 @@
 			</div>
 		</PopoverContent>
 	</Popover>
+	</div>
 </div>

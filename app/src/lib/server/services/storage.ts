@@ -123,6 +123,37 @@ export function virtualRootForFolder(folder: { path: string; user: { username: s
 	return folder.user.username;
 }
 
+/**
+ * True if `relativePath` is a personal folder root (virtual `<username>`, legacy `0/<name>`
+ * row path, or physical `0/.personal_<username>`), not a subfolder.
+ */
+export async function isPersonalFolderRoot(relativePath: string): Promise<boolean> {
+	await ensurePersonalFolderMigration();
+
+	const cleaned = path
+		.normalize(relativePath.replace(/^[/\\]+/, ''))
+		.replace(/\\/g, '/')
+		.replace(/\/+$/, '');
+	if (!cleaned) return false;
+
+	if (/^\d+\/\.personal_[^/]+$/.test(cleaned)) return true;
+
+	if (!cleaned.includes('/')) {
+		const folder = await db.personalFolder.findFirst({
+			where: { user: { username: cleaned } },
+			include: { user: { select: { username: true } } }
+		});
+		return folder !== null && virtualRootForFolder(folder) === cleaned;
+	}
+
+	const legacyPrefix = cleaned.split('/').slice(0, 2).join('/');
+	const legacy = await db.personalFolder.findFirst({
+		where: { path: legacyPrefix },
+		include: { user: { select: { username: true } } }
+	});
+	return legacy !== null && cleaned === legacy.path;
+}
+
 let personalFolderMigration: Promise<void> | null = null;
 
 /**

@@ -59,7 +59,8 @@ export const GET: RequestHandler = async ({ params, url, request, locals }) => {
 		fit,
 		quality,
 		sourceMtimeMs: stat.mtimeMs,
-		sourceSize: stat.size
+		sourceSize: stat.size,
+		cacheRootPath: resolved.root
 	});
 
 	if (request.headers.get('if-none-match') === thumb.etag) {

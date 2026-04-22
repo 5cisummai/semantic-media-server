@@ -104,9 +104,19 @@ async function uploadSingle(item: UploadFileItem): Promise<string | null> {
 				return;
 			}
 
+			let detail = `Server error ${xhr.status}`;
+			try {
+				const body = JSON.parse(xhr.responseText) as { message?: string };
+				if (typeof body?.message === 'string' && body.message.length > 0) {
+					detail = body.message;
+				}
+			} catch {
+				// non-JSON body
+			}
+
 			patchItem(item.id, {
 				status: 'error',
-				error: `Server error ${xhr.status}`
+				error: detail
 			});
 			resolve(null);
 		});
