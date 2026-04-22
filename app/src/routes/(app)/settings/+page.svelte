@@ -296,8 +296,8 @@
 				><Card.Content class="p-4">
 					<h3 class="mb-2 text-sm font-medium">Search &amp; AI chat indexing</h3>
 					<p class="mb-3 text-sm text-muted-foreground">
-						<strong class="font-medium text-foreground">Semantic index</strong> powers Smart Search
-						and the assistant’s file search for the
+						<strong class="font-medium text-foreground">Semantic index</strong> powers the assistant’s
+						file search for the
 						<strong class="font-medium text-foreground">workspace selected in the header</strong>.
 						Rebuilding it rescans files into that workspace’s vector index.
 						<strong class="font-medium text-foreground">Ingest</strong> reads text and PDFs and stores

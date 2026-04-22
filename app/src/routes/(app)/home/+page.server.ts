@@ -28,7 +28,7 @@ export const load: PageServerLoad = async ({ fetch, parent }) => {
 	}
 
 	const [browseResponse, chatsResponse, storageResponse] = await Promise.all([
-		fetch('/api/browse'),
+		fetch('/api/browse?recursive=1'),
 		fetch(`/api/workspaces/${activeWorkspaceId}/chats`),
 		fetch('/api/storage')
 	]);

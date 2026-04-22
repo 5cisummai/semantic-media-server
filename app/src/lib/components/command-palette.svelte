@@ -6,7 +6,6 @@
 	import HomeIcon from '@lucide/svelte/icons/home';
 	import FilesIcon from '@lucide/svelte/icons/files';
 	import BotIcon from '@lucide/svelte/icons/bot';
-	import SearchIcon from '@lucide/svelte/icons/search';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import FolderCogIcon from '@lucide/svelte/icons/folder-cog';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -44,7 +43,6 @@
 		{ label: 'Home', icon: HomeIcon, href: '/home' },
 		{ label: 'Browse files', icon: FilesIcon, href: '/browse' },
 		{ label: 'New agent session', icon: PlusIcon, href: '/chat' },
-		{ label: 'Smart Search', icon: SearchIcon, href: '/search' },
 		{ label: 'Workspace settings', icon: FolderCogIcon, href: '/workspace' },
 		{ label: 'Settings', icon: SettingsIcon, href: '/settings' }
 	] as const;

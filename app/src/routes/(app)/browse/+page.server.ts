@@ -1,7 +1,9 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { requireAuth, filterPersonalEntries } from '$lib/server/api';
+import { listDirectoryShallowClientTree } from '$lib/server/services/storage';
 
-export const load: PageServerLoad = async ({ fetch, url }) => {
+export const load: PageServerLoad = async ({ fetch, url, locals }) => {
 	const file = url.searchParams.get('file');
 	if (file) {
 		const next = new URLSearchParams();
@@ -12,15 +14,17 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
 		throw redirect(302, `/browse/media?${next.toString()}`);
 	}
 
+	const user = await requireAuth(locals);
 	const currentPath = url.searchParams.get('path') ?? '';
 	const folderUrl = currentPath ? `/api/browse/${currentPath}` : '/api/browse';
-	const [treeResponse, folderResponse] = await Promise.all([
-		fetch('/api/browse'),
+
+	const [shallowTree, folderResponse] = await Promise.all([
+		listDirectoryShallowClientTree('', user).then((t) => filterPersonalEntries(user, t)),
 		fetch(folderUrl)
 	]);
 
 	return {
-		fileTree: treeResponse.ok ? await treeResponse.json() : [],
+		fileTree: shallowTree,
 		currentPath,
 		folderContents: folderResponse.ok ? await folderResponse.json() : []
 	};

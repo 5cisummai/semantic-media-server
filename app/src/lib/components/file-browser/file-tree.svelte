@@ -19,17 +19,22 @@
 	import { createEventDispatcher } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import FileTreeSelf from './file-tree.svelte';
+	import LazyExpandableFolder from './lazy-expandable-folder.svelte';
 
 	let {
 		tree = [],
 		activePath = null,
 		parentPath = '',
-		isSubTree = false
+		isSubTree = false,
+		folderChildrenLoader,
+		mergeFolderChildren
 	}: {
 		tree: FileTreeNode[];
 		activePath: string | null;
 		parentPath: string;
 		isSubTree?: boolean;
+		folderChildrenLoader?: (path: string) => Promise<FileTreeNode[]>;
+		mergeFolderChildren?: (path: string, children: FileTreeNode[]) => void;
 	} = $props();
 
 	const dispatch = createEventDispatcher<{
@@ -72,10 +77,10 @@
 		return expandedFolders.includes(path);
 	}
 
-	function toggle(path: string) {
-		expandedFolders = isExpanded(path)
-			? expandedFolders.filter((v) => v !== path)
-			: [...expandedFolders, path];
+	function prepareExpandPath(path: string) {
+		if (!expandedFolders.includes(path)) {
+			expandedFolders = [...expandedFolders, path];
+		}
 	}
 
 	function select(path: string, kind: 'file' | 'directory') {
@@ -112,11 +117,21 @@
 							{activePath}
 							parentPath={path}
 							isSubTree={true}
+							{folderChildrenLoader}
+							{mergeFolderChildren}
 							on:select={(e) => handleSelect(e.detail)}
 						/>
 					</div>
 				</Collapsible.Content>
 			</Collapsible.Root>
+		{:else if folderChildrenLoader && mergeFolderChildren}
+			<LazyExpandableFolder
+				{name}
+				{isSubTree}
+				prepareExpand={() => prepareExpandPath(path)}
+				load={() => folderChildrenLoader(path)}
+				onLoaded={(loaded) => mergeFolderChildren(path, loaded)}
+			/>
 		{:else}
 			<Button
 				variant="ghost"

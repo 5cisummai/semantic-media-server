@@ -24,7 +24,6 @@
 		'/home': 'Home',
 		'/browse': 'Browser',
 		'/chat': 'Agent',
-		'/search': 'Smart Search',
 		'/settings': 'Settings',
 		'/workspace': 'Workspace'
 	};

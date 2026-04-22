@@ -18,6 +18,7 @@
 	import { fsHistory } from '$lib/hooks/fs-history.svelte';
 
 	import type { FileEntry } from './file-grid.svelte';
+	import type { FileTreeNode } from './file-tree.svelte';
 
 	let {
 		fileTree = [],
@@ -31,6 +32,55 @@
 		selectedPath?: string | null;
 		currentPath?: string;
 	} = $props();
+
+	let sidebarTree = $state<FileEntry[]>([]);
+
+	function encodeBrowseSegments(relativePath: string): string {
+		return relativePath
+			.split('/')
+			.filter((s) => s.length > 0)
+			.map((seg) => encodeURIComponent(seg))
+			.join('/');
+	}
+
+	async function fetchBrowseFolderChildren(path: string): Promise<FileTreeNode[]> {
+		const encoded = encodeBrowseSegments(path);
+		const url = encoded ? `/api/browse/${encoded}` : '/api/browse';
+		const res = await fetch(url);
+		if (!res.ok) return [];
+		const rows = (await res.json()) as Array<{
+			name: string;
+			path: string;
+			type: 'file' | 'directory';
+		}>;
+		return rows.map((r) => ({
+			name: r.name,
+			path: r.path,
+			type: r.type,
+			children: r.type === 'directory' ? [] : undefined
+		}));
+	}
+
+	function mergeChildrenAtPath(nodes: FileEntry[], targetPath: string, newChildren: FileEntry[]): FileEntry[] {
+		return nodes.map((node) => {
+			if (node.path === targetPath && node.type === 'directory') {
+				return { ...node, children: newChildren };
+			}
+			if (node.type === 'directory' && node.children != null) {
+				return { ...node, children: mergeChildrenAtPath(node.children, targetPath, newChildren) };
+			}
+			return node;
+		});
+	}
+
+	function handleFolderChildrenLoaded(path: string, children: FileTreeNode[]) {
+		sidebarTree = mergeChildrenAtPath(sidebarTree, path, children as FileEntry[]);
+	}
+
+	$effect(() => {
+		void fileTree;
+		sidebarTree = structuredClone(fileTree);
+	});
 
 	let gridLocalSelectedPaths = $state<string[]>([]);
 
@@ -288,8 +338,10 @@
 		<Resizable.Pane defaultSize={20} minSize={15} maxSize={40} class="overflow-hidden">
 			<div class="h-full overflow-hidden">
 				<FileBrowserSidebar
-					tree={fileTree}
+					tree={sidebarTree}
 					activePath={currentPath}
+					folderChildrenLoader={fetchBrowseFolderChildren}
+					mergeFolderChildren={handleFolderChildrenLoaded}
 					on:select={handleSidebarSelect}
 				/>
 			</div>

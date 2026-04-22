@@ -2,7 +2,6 @@
 	import BotIcon from '@lucide/svelte/icons/bot';
 	import FilesIcon from '@lucide/svelte/icons/files';
 	import HomeIcon from '@lucide/svelte/icons/home';
-	import MagnifyingGlassIcon from '@lucide/svelte/icons/search';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import FolderCogIcon from '@lucide/svelte/icons/folder-cog';
 
@@ -21,11 +20,6 @@
 			title: 'Agent',
 			href: '/chat',
 			icon: BotIcon
-		},
-		{
-			title: 'Smart Search',
-			href: '/search',
-			icon: MagnifyingGlassIcon
 		},
 		{
 			title: 'Workspace',

@@ -4,6 +4,7 @@
 	import FileTree from '$lib/components/file-browser/file-tree.svelte';
 	import { createEventDispatcher } from 'svelte';
 	import type { FileEntry } from '$lib/components/file-browser/file-grid.svelte';
+	import type { FileTreeNode } from '$lib/components/file-browser/file-tree.svelte';
 
 	const dispatch = createEventDispatcher<{
 		select: { path: string; kind: 'file' | 'directory' };
@@ -11,8 +12,15 @@
 
 	let {
 		activePath = null,
-		tree = null
-	}: { activePath?: string | null; tree?: FileEntry[] | null } = $props();
+		tree = null,
+		folderChildrenLoader,
+		mergeFolderChildren
+	}: {
+		activePath?: string | null;
+		tree?: FileEntry[] | null;
+		folderChildrenLoader?: (path: string) => Promise<FileTreeNode[]>;
+		mergeFolderChildren?: (path: string, children: FileTreeNode[]) => void;
+	} = $props();
 
 	const sidebarTree = $derived((tree ?? $page.data.fileTree ?? []) as FileEntry[]);
 
@@ -25,7 +33,14 @@
 	<div class="flex-1 overflow-x-hidden overflow-y-auto p-2">
 		{#if sidebarTree.length}
 			<Sidebar.Menu class="w-full">
-				<FileTree tree={sidebarTree} {activePath} parentPath="" on:select={handleSelect} />
+				<FileTree
+					tree={sidebarTree}
+					{activePath}
+					parentPath=""
+					{folderChildrenLoader}
+					{mergeFolderChildren}
+					on:select={handleSelect}
+				/>
 			</Sidebar.Menu>
 		{:else}
 			<div class="px-3 text-xs text-muted-foreground">Loading files...</div>

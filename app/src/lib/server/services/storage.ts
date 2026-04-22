@@ -3,6 +3,7 @@ import type { UserRole } from '@prisma/client';
 import * as path from '$lib/server/paths';
 import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/db';
+import { TEXT_EDITOR_EXTENSIONS } from '$lib/media-text-extensions';
 
 export type MediaType = 'video' | 'audio' | 'image' | 'document' | 'other';
 
@@ -27,6 +28,8 @@ export interface DriveInfo {
 	freeBytes?: number;
 	usedPercent?: number;
 }
+
+const TEXT_EDITOR_MIME = 'text/plain; charset=utf-8';
 
 const MEDIA_EXTENSIONS: Record<string, { mediaType: MediaType; mimeType: string }> = {
 	// Video
@@ -54,7 +57,13 @@ const MEDIA_EXTENSIONS: Record<string, { mediaType: MediaType; mimeType: string 
 	pdf: { mediaType: 'document', mimeType: 'application/pdf' },
 	epub: { mediaType: 'document', mimeType: 'application/epub+zip' },
 	cbz: { mediaType: 'document', mimeType: 'application/zip' },
-	cbr: { mediaType: 'document', mimeType: 'application/x-rar-compressed' }
+	cbr: { mediaType: 'document', mimeType: 'application/x-rar-compressed' },
+	...Object.fromEntries(
+		TEXT_EDITOR_EXTENSIONS.map((ext) => [
+			ext,
+			{ mediaType: 'other' as MediaType, mimeType: TEXT_EDITOR_MIME }
+		])
+	)
 };
 
 // Parse MEDIA_ROOTS from env — supports multiple comma-separated paths
@@ -423,40 +432,41 @@ export async function listDirectory(
 		: resolveSafePath(relativePath);
 	if (!resolved) throw new Error('Invalid path');
 
-	const dirents = await fs.readdir(resolved.fullPath, { withFileTypes: true });
-	const entries: MediaEntry[] = [];
+	const dirents = (await fs.readdir(resolved.fullPath, { withFileTypes: true })).filter(
+		(d) => !d.name.startsWith('.')
+	);
 
-	for (const dirent of dirents) {
-		if (dirent.name.startsWith('.')) continue; // skip hidden files
-
-		const fullPath = path.join(resolved.fullPath, dirent.name);
-		const childRelative = path.join(relativePath, dirent.name);
-		const isDir = dirent.isDirectory();
-
-		if (isDir) {
+	const stats = await Promise.all(
+		dirents.map(async (dirent) => {
+			const fullPath = path.join(resolved.fullPath, dirent.name);
+			const childRelative = path.join(relativePath, dirent.name);
 			const stat = await fs.stat(fullPath);
-			entries.push({
+			return { dirent, fullPath, childRelative, stat };
+		})
+	);
+
+	const entries: MediaEntry[] = stats.map(({ dirent, fullPath, childRelative, stat }) => {
+		if (dirent.isDirectory()) {
+			return {
 				name: dirent.name,
 				path: childRelative,
 				fullPath,
-				type: 'directory',
+				type: 'directory' as const,
 				modified: stat.mtime.toISOString()
-			});
-		} else {
-			const { mediaType, mimeType } = getMediaInfo(dirent.name);
-			const stat = await fs.stat(fullPath);
-			entries.push({
-				name: dirent.name,
-				path: childRelative,
-				fullPath,
-				type: 'file',
-				mediaType,
-				mimeType,
-				size: stat.size,
-				modified: stat.mtime.toISOString()
-			});
+			};
 		}
-	}
+		const { mediaType, mimeType } = getMediaInfo(dirent.name);
+		return {
+			name: dirent.name,
+			path: childRelative,
+			fullPath,
+			type: 'file' as const,
+			mediaType,
+			mimeType,
+			size: stat.size,
+			modified: stat.mtime.toISOString()
+		};
+	});
 
 	// Directories first, then files, both alphabetical
 	return entries.sort((a, b) => {
@@ -496,6 +506,22 @@ export async function listDirectoryTree(
 	}
 
 	return result;
+}
+
+/** One level of the tree for sidebars: directories include `children: []` for lazy expansion. */
+export async function listDirectoryShallowClientTree(
+	relativePath: string,
+	viewer?: MediaPathUser | null
+): Promise<ClientMediaEntry[]> {
+	const entries = await listDirectory(relativePath, viewer);
+	return entries.map((entry) => {
+		const { fullPath, ...safe } = entry;
+		void fullPath;
+		if (entry.type === 'directory') {
+			return { ...safe, children: [] as ClientMediaEntry[] };
+		}
+		return safe;
+	});
 }
 
 export function formatSize(bytes: number): string {

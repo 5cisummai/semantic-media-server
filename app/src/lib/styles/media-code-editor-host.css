@@ -1,0 +1,119 @@
+/*
+ * Tokens for @umaranis/svelte-code-editor (CodeMirror) only.
+ * Never import @umaranis/svelte-code-editor/styles/index.css — it pulls in base.css and breaks the app.
+ *
+ * Colors: Catppuccin Latte (light) / Mocha (dark), hex from https://github.com/catppuccin/palette
+ */
+
+.media-code-editor-root {
+	color-scheme: light;
+
+	/* Foreground — Latte */
+	--sk-fg-1: #4c4f69;
+	--sk-fg-2: #4c4f69;
+	--sk-fg-3: #5c5f77;
+	--sk-fg-4: #6c6f85;
+	--sk-fg-accent: #fe640b;
+
+	/* Surfaces — Latte */
+	--sk-bg-1: #eff1f5;
+	--sk-bg-2: #e6e9ef;
+	--sk-bg-3: #e6e9ef;
+	--sk-bg-4: #ccd0da;
+	--sk-bg-accent: #fe640b;
+	--sk-bg-selection: rgba(30, 102, 245, 0.28);
+	--sk-bg-highlight: rgba(223, 142, 29, 0.35);
+
+	--sk-border: #acb0be;
+
+	/* Syntax — Latte */
+	--shiki-color-text: #4c4f69;
+	--shiki-token-constant: #4c4f69;
+	--shiki-token-string: #40a02b;
+	--shiki-token-comment: #8c8fa1;
+	--shiki-token-keyword: #8839ef;
+	--shiki-token-parameter: #4c4f69;
+	--shiki-token-function: #fe640b;
+	--shiki-token-string-expression: #40a02b;
+	--shiki-token-punctuation: #5c5f77;
+	--shiki-token-link: #1e66f5;
+	--sk-code-atom: #179299;
+
+	--sk-scrollbar: rgba(124, 127, 147, 0.45);
+	--sk-shadow: drop-shadow(0 2px 12px rgba(76, 79, 105, 0.08));
+
+	--sk-border-radius: 0.4rem;
+	--sk-border-radius-inner: 0.2rem;
+
+	--sk-font-family-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+	--sk-font-family-ui: system-ui, sans-serif;
+	--sk-font-size-mono: 0.8125rem;
+	--sk-font-size-ui-small: 0.8125rem;
+	--sk-font-mono: 400 var(--sk-font-size-mono) / 1.7 var(--sk-font-family-mono);
+	--sk-font-ui-small: 400 var(--sk-font-size-ui-small) / 1.5 var(--sk-font-family-ui);
+
+	--selection-color: rgba(30, 102, 245, 0.22);
+	--flash: #209fb5;
+
+	/* Search panel / faux-3D buttons */
+	--sk-raised-border: #acb0be;
+	--sk-raised-highlight: #bcc0cc;
+	--sk-raised-shadow: #9ca0b0;
+	--sk-raised-color: var(--sk-raised-highlight) var(--sk-raised-border) var(--sk-raised-border)
+		var(--sk-raised-highlight);
+	--sk-raised-hover-color: var(--sk-raised-border) var(--sk-raised-shadow) var(--sk-raised-shadow)
+		var(--sk-raised-border);
+	--sk-raised-active-color: var(--sk-raised-shadow) var(--sk-raised-border) var(--sk-raised-border)
+		var(--sk-raised-shadow);
+	--sk-raised-width: 1px 2px 2px 1px;
+	--sk-raised-active-width: 2px 1px 1px 2px;
+}
+
+:global(.dark) .media-code-editor-root {
+	color-scheme: dark;
+
+	/* Mocha */
+	--sk-fg-1: #cdd6f4;
+	--sk-fg-2: #cdd6f4;
+	--sk-fg-3: #bac2de;
+	--sk-fg-4: #a6adc8;
+	--sk-fg-accent: #fab387;
+
+	--sk-bg-1: #1e1e2e;
+	--sk-bg-2: #181825;
+	--sk-bg-3: #181825;
+	--sk-bg-4: #313244;
+	--sk-bg-accent: #fab387;
+	--sk-bg-selection: rgba(137, 180, 250, 0.35);
+	--sk-bg-highlight: rgba(249, 226, 175, 0.22);
+
+	--sk-border: #585b70;
+
+	--shiki-color-text: #cdd6f4;
+	--shiki-token-constant: #cdd6f4;
+	--shiki-token-string: #a6e3a1;
+	--shiki-token-comment: #a6abc4;
+	--shiki-token-keyword: #cba6f7;
+	--shiki-token-parameter: #cdd6f4;
+	--shiki-token-function: #fab387;
+	--shiki-token-string-expression: #a6e3a1;
+	--shiki-token-punctuation: #bac2de;
+	--shiki-token-link: #89b4fa;
+	--sk-code-atom: #94e2d5;
+
+	--sk-scrollbar: rgba(147, 153, 178, 0.45);
+	--sk-shadow: drop-shadow(0 2px 16px rgba(0, 0, 0, 0.45));
+
+	--selection-color: rgba(137, 180, 250, 0.28);
+	--flash: #74c7ec;
+
+	--sk-raised-border: #585b70;
+	--sk-raised-highlight: #45475a;
+	--sk-raised-shadow: #181825;
+	--sk-raised-color: var(--sk-raised-border) var(--sk-raised-shadow) var(--sk-raised-shadow)
+		var(--sk-raised-border);
+	--sk-raised-hover-color: var(--sk-raised-highlight) var(--sk-raised-shadow)
+		var(--sk-raised-shadow) var(--sk-raised-highlight);
+	--sk-raised-active-color: var(--sk-raised-shadow) var(--sk-raised-highlight)
+		var(--sk-raised-highlight) var(--sk-raised-shadow);
+}

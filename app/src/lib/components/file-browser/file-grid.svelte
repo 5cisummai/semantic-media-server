@@ -12,7 +12,9 @@
 </script>
 
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import { createEventDispatcher } from 'svelte';
+	import { Grid } from 'svelte-virtual';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -65,6 +67,28 @@
 	}
 
 	const items = $derived(flattenEntries(fileTree));
+
+	let gridViewportEl = $state<HTMLDivElement | undefined>();
+	let viewportH = $state(400);
+	let viewportW = $state(600);
+
+	$effect(() => {
+		if (!browser || !gridViewportEl) return;
+		const el = gridViewportEl;
+		const ro = new ResizeObserver(() => {
+			viewportH = el.clientHeight;
+			viewportW = el.clientWidth;
+		});
+		ro.observe(el);
+		viewportH = el.clientHeight;
+		viewportW = el.clientWidth;
+		return () => ro.disconnect();
+	});
+
+	const gridColumnCount = $derived(Math.max(1, Math.floor(viewportW / Math.max(gridMinTilePx, 88))));
+	const cellWidth = $derived(Math.max(40, viewportW / gridColumnCount));
+	const cellHeight = $derived(Math.ceil(cellWidth + 48));
+	const gridHeight = $derived(Math.max(200, viewportH));
 
 	function encodeMediaPath(relativePath: string): string {
 		return relativePath
@@ -119,11 +143,11 @@
 		}
 
 		if (e.metaKey || e.ctrlKey) {
-			const set = new Set(selectedPaths);
-			if (set.has(entry.path)) set.delete(entry.path);
-			else set.add(entry.path);
+			const next = selectedPaths.includes(entry.path)
+				? selectedPaths.filter((p) => p !== entry.path)
+				: [...selectedPaths, entry.path];
 			rangeAnchorPath = entry.path;
-			setSelection(Array.from(set));
+			setSelection(next);
 			return;
 		}
 
@@ -338,8 +362,6 @@
 				? [input.files[0]]
 				: [];
 
-		console.log('[upload] onUploadPicked called', { fileCount: fileArray.length, currentPath });
-
 		// Reset input to allow re-selecting same files
 		input.value = '';
 
@@ -456,55 +478,70 @@
 				<p class="text-xs text-muted-foreground">{items.length} items</p>
 			</div>
 
-			<div class="min-h-0 flex-1 overflow-auto">
-				<ul
-					class="grid gap-3"
-					role="listbox"
-					aria-multiselectable="true"
-					style="grid-template-columns: repeat(auto-fill, minmax(min(100%, {gridMinTilePx}px), 1fr));"
-				>
-					{#each items as item (item.path)}
-						<li role="presentation">
-							<ContextMenu.Root>
-								<ContextMenu.Trigger>
-									<Button
-										type="button"
-										variant="ghost"
-										role="option"
-										aria-selected={selectedPaths.includes(item.path)}
-										class="aspect-square h-auto w-full flex-col items-stretch justify-start gap-1 rounded-xl p-1 text-center whitespace-normal {selectedPaths.includes(
-											item.path
-										)
-											? 'bg-muted'
-											: ''}"
-										onclick={(e) => onTileClick(item, e)}
-										onkeydown={(e) => onTileKeydown(item, e)}
-									>
-										<FilePreviewTile
-											class="h-full min-h-0 w-full"
-											item={{
-												name: item.name,
-												path: item.path,
-												url: buildThumbnailUrl(item),
-												type: item.type,
-												mimeType: item.mimeType
-											}}
-										/>
-									</Button>
-								</ContextMenu.Trigger>
-								<ContextMenu.Content class="w-48">
-									<ContextMenu.Item onclick={() => activateEntry(item)}>Open</ContextMenu.Item>
-									<ContextMenu.Item onclick={renameNotSupported}>Rename</ContextMenu.Item>
-									<ContextMenu.Item onclick={() => copyPath(item.path)}>Copy path</ContextMenu.Item>
-									<ContextMenu.Separator />
-									<ContextMenu.Item variant="destructive" onclick={() => requestDelete(item)}>
-										Delete
-									</ContextMenu.Item>
-								</ContextMenu.Content>
-							</ContextMenu.Root>
-						</li>
-					{/each}
-				</ul>
+			<div class="min-h-0 min-w-0 flex-1" bind:this={gridViewportEl}>
+				{#if items.length === 0}
+					<div class="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
+						This folder is empty.
+					</div>
+				{:else}
+					<Grid
+						itemCount={items.length}
+						itemHeight={cellHeight}
+						itemWidth={cellWidth}
+						height={gridHeight}
+						columnCount={gridColumnCount}
+						overScan={2}
+						class="rounded-md"
+						role="listbox"
+						aria-multiselectable="true"
+						getKey={(index) => items[index]?.path ?? index}
+					>
+						{#snippet item({ index, style })}
+							{@const item = items[index]}
+							{#if item}
+								<div role="presentation" class="box-border min-h-0 min-w-0 p-0.5" {style}>
+									<ContextMenu.Root>
+										<ContextMenu.Trigger class="block h-full min-h-0 w-full">
+											<Button
+												type="button"
+												variant="ghost"
+												role="option"
+												aria-selected={selectedPaths.includes(item.path)}
+												class="aspect-square h-full min-h-0 w-full flex-col items-stretch justify-start gap-1 rounded-xl p-1 text-center whitespace-normal {selectedPaths.includes(
+													item.path
+												)
+													? 'bg-muted'
+													: ''}"
+												onclick={(e) => onTileClick(item, e)}
+												onkeydown={(e) => onTileKeydown(item, e)}
+											>
+												<FilePreviewTile
+													class="h-full min-h-0 w-full"
+													item={{
+														name: item.name,
+														path: item.path,
+														url: buildThumbnailUrl(item),
+														type: item.type,
+														mimeType: item.mimeType
+													}}
+												/>
+											</Button>
+										</ContextMenu.Trigger>
+										<ContextMenu.Content class="w-48">
+											<ContextMenu.Item onclick={() => activateEntry(item)}>Open</ContextMenu.Item>
+											<ContextMenu.Item onclick={renameNotSupported}>Rename</ContextMenu.Item>
+											<ContextMenu.Item onclick={() => copyPath(item.path)}>Copy path</ContextMenu.Item>
+											<ContextMenu.Separator />
+											<ContextMenu.Item variant="destructive" onclick={() => requestDelete(item)}>
+												Delete
+											</ContextMenu.Item>
+										</ContextMenu.Content>
+									</ContextMenu.Root>
+								</div>
+							{/if}
+						{/snippet}
+					</Grid>
+				{/if}
 			</div>
 		</div>
 	</ContextMenu.Trigger>
