@@ -501,7 +501,7 @@
 							<button
 								type="button"
 								title="Unpin"
-								class="flex size-6 items-center justify-center rounded text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-foreground"
+								class="flex size-6 items-center justify-center rounded text-transparent transition-colors group-hover:text-muted-foreground/60 hover:text-foreground!"
 								onclick={() => pinnedFolders.unpin(folder.path)}
 							>
 								<XIcon class="size-3.5" />
@@ -542,9 +542,9 @@
 									value={drive.usedPercent ?? 0}
 									max={100}
 									class={(drive.usedPercent ?? 0) > 90
-										? '[&_[data-slot=progress-indicator]]:bg-destructive'
+										? '**:data-[slot=progress-indicator]:bg-destructive'
 										: (drive.usedPercent ?? 0) > 75
-											? '[&_[data-slot=progress-indicator]]:bg-amber-500'
+											? '**:data-[slot=progress-indicator]:bg-amber-500'
 											: ''}
 								/>
 								<div class="mt-2 flex items-center justify-between text-xs text-muted-foreground">

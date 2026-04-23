@@ -13,6 +13,7 @@
 		title?: string;
 		path?: string;
 		type?: 'file' | 'directory' | 'folder';
+		rootEntryKind?: 'trash';
 		children?: BrowseNode[];
 	};
 
@@ -33,6 +34,7 @@
 				name,
 				path,
 				type: isDirectory ? 'directory' : 'file',
+				rootEntryKind: node.rootEntryKind,
 				children: node.children ? toFileEntries(node.children) : []
 			};
 		});
@@ -49,6 +51,8 @@
 			mediaType: entry.mediaType,
 			mimeType: entry.mimeType,
 			modified: entry.modified,
+			viewerKind: entry.viewerKind,
+			rootEntryKind: entry.rootEntryKind,
 			children: entry.type === 'directory' ? [] : undefined
 		}))
 	);

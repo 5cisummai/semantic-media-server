@@ -54,7 +54,8 @@ function makeNeedsApproval(toolName: string) {
 
 export const deleteFileTool = tool({
 	name: 'delete_file',
-	description: 'Move a file or folder to the media root .trash folder (recoverable via undo history).',
+	description:
+		'Move a file or folder to the media root .trash folder (recoverable via undo history). Paths already under .trash (e.g. 0/.trash/...) are permanently deleted.',
 	parameters: z.object({
 		path: z
 			.string()

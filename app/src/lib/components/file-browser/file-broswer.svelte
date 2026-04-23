@@ -15,9 +15,7 @@
 	import UploadIcon from '@lucide/svelte/icons/upload';
 	import Undo2Icon from '@lucide/svelte/icons/undo-2';
 	import Redo2Icon from '@lucide/svelte/icons/redo-2';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import FileBrowserSidebar from './file-browser-sidebar.svelte';
-	import { mediaTrashBrowsePath } from '$lib/components/file-browser/media-trash-path';
 	import FileGrid from './file-grid.svelte';
 	import { fsHistory } from '$lib/hooks/fs-history.svelte';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte.js';
@@ -311,10 +309,6 @@
 		dispatch('pathChange', path);
 	}
 
-	function openTrashFolder() {
-		navigateTo(mediaTrashBrowsePath(currentPath));
-	}
-
 	async function handleUndo() {
 		const result = await fsHistory.undo();
 		if (result.success && result.description) {
@@ -483,19 +477,6 @@
 				>
 					<UploadIcon class="size-4" />
 					<span class="hidden sm:inline">Upload</span>
-				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					size={isSmallMobile.current ? 'icon-sm' : 'sm'}
-					class="gap-1.5"
-					disabled={refreshing}
-					title="Open Trash for this drive"
-					aria-label="Trash"
-					onclick={openTrashFolder}
-				>
-					<Trash2Icon class="size-4" />
-					<span class="hidden sm:inline">Trash</span>
 				</Button>
 			</ButtonGroup>
 

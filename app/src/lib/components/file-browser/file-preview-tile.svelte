@@ -7,6 +7,7 @@
 		mediaType?: 'video' | 'audio' | 'image' | 'document' | 'other';
 		viewerKind?: 'video' | 'audio' | 'image' | 'pdf' | 'text' | 'none';
 		type?: 'file' | 'directory';
+		rootEntryKind?: 'trash';
 	};
 </script>
 
@@ -14,6 +15,8 @@
 	import FileIcon from '@lucide/svelte/icons/file';
 	import FileTextIcon from '@lucide/svelte/icons/file-text';
 	import FolderIcon from '@lucide/svelte/icons/folder';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import { isMediaTrashRootPath } from '$lib/media-trash-path';
 	import ImageIcon from '@lucide/svelte/icons/image';
 	import MusicIcon from '@lucide/svelte/icons/music';
 	import VideoIcon from '@lucide/svelte/icons/video';
@@ -48,6 +51,10 @@
 	const mediaUrl = $derived(item.url ?? item.path ?? '');
 	const extension = $derived(normalizedName.split('.').pop()?.toLowerCase() ?? '');
 	const isDirectory = $derived(item.type === 'directory');
+	const isTrashRoot = $derived(
+		item.rootEntryKind === 'trash' ||
+			(isDirectory && item.path != null && isMediaTrashRootPath(item.path))
+	);
 
 	const isImage = $derived(
 		!isDirectory &&
@@ -78,6 +85,7 @@
 	);
 
 	const TileIcon = $derived.by(() => {
+		if (isTrashRoot) return Trash2Icon;
 		if (isDirectory) return FolderIcon;
 		if (isImage) return ImageIcon;
 		if (isVideo) return VideoIcon;

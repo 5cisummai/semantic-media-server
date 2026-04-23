@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import * as path from '$lib/server/paths';
 import { isPersonalFolderRoot, resolveMediaPath } from '$lib/server/services/storage';
+import { isMediaTrashSubtreePath } from '$lib/media-trash-path';
 import { deleteSemanticEntryByRelativePath } from '$lib/server/semantic';
 import { db } from '$lib/server/db';
 import { requireAuth, requirePathAccess, audit } from '$lib/server/api';
@@ -63,7 +64,9 @@ export const DELETE: RequestHandler = async ({ params, locals, request }) => {
 	// Use DB-fresh role, not JWT role
 	const isAdmin = user.role === 'ADMIN';
 
-	if (!isAdmin) {
+	const purgeTrash = isMediaTrashSubtreePath(relativePath);
+
+	if (!purgeTrash && !isAdmin) {
 		if (stat.isDirectory()) {
 			throw error(403, 'Only admins can delete directories');
 		}
@@ -86,10 +89,18 @@ export const DELETE: RequestHandler = async ({ params, locals, request }) => {
 		user.id,
 		'MEMBER'
 	);
-	const trashKey = randomUUID();
+	const trashKey = purgeTrash ? null : randomUUID();
 
 	try {
-		await moveToTrash(resolved.fullPath, trashKey);
+		if (purgeTrash) {
+			if (stat.isDirectory()) {
+				await fs.rm(resolved.fullPath, { recursive: true, force: true });
+			} else {
+				await fs.unlink(resolved.fullPath);
+			}
+		} else {
+			await moveToTrash(resolved.fullPath, trashKey!);
+		}
 	} catch (err) {
 		if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
 			throw error(404, 'Path not found');
@@ -116,14 +127,16 @@ export const DELETE: RequestHandler = async ({ params, locals, request }) => {
 		}
 	}
 
-	// Record history action
-	await recordAction({
-		userId: user.id,
-		workspaceId: workspaceId ?? null,
-		operation: FsOperation.DELETE,
-		payload: { relativePath, trashKey, root: resolved.root },
-		description: `Deleted ${relativePath}`
-	});
+	// Record history action (skip for trash purge — nothing to restore from nested trash)
+	if (!purgeTrash && trashKey) {
+		await recordAction({
+			userId: user.id,
+			workspaceId: workspaceId ?? null,
+			operation: FsOperation.DELETE,
+			payload: { relativePath, trashKey, root: resolved.root },
+			description: `Deleted ${relativePath}`
+		});
+	}
 
 	// Audit log for all file/directory deletions
 	await audit({
@@ -133,6 +146,7 @@ export const DELETE: RequestHandler = async ({ params, locals, request }) => {
 		metadata: {
 			fileCount: semanticPaths.length,
 			isAdmin,
+			permanentFromTrash: purgeTrash,
 			paths: semanticPaths.slice(0, 50) // Cap logged paths to prevent log bloat
 		}
 	});

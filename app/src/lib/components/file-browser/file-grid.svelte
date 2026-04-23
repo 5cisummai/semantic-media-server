@@ -7,6 +7,9 @@
 		mediaType?: 'video' | 'audio' | 'image' | 'document' | 'other';
 		mimeType?: string;
 		modified?: string;
+		viewerKind?: 'video' | 'audio' | 'image' | 'pdf' | 'text' | 'none';
+		/** Synthetic merged-root row: show trash icon. */
+		rootEntryKind?: 'trash';
 		children?: FileEntry[];
 	};
 </script>
@@ -25,6 +28,7 @@
 	import { uploadManager } from '$lib/upload-manager';
 	import { workspaceStore } from '$lib/hooks/workspace.svelte';
 	import { fsHistory } from '$lib/hooks/fs-history.svelte';
+	import { isMediaTrashSubtreePath } from '$lib/media-trash-path';
 	import FilePreviewTile from './file-preview-tile.svelte';
 
 	let {
@@ -332,9 +336,21 @@
 		return '0 items';
 	}
 
+	function entriesAreTrashPurge(entries: FlatEntry[]): boolean {
+		return entries.length > 0 && entries.every((e) => isMediaTrashSubtreePath(e.path));
+	}
+
 	function deleteMenuLabel(targets: FlatEntry[]): string {
 		const n = targets.length;
 		if (n === 0) return 'Delete';
+		const perm = entriesAreTrashPurge(targets);
+		if (perm) {
+			if (n === 1) {
+				return targets[0].type === 'directory' ? 'Delete folder permanently' : 'Delete permanently';
+			}
+			const { files, dirs } = fileAndFolderCounts(targets);
+			return `Permanently delete ${formatFileFolderPhrase(files, dirs, 'comma')}`;
+		}
 		if (n === 1) {
 			return targets[0].type === 'directory' ? 'Delete folder' : 'Delete file';
 		}
@@ -362,7 +378,10 @@
 				return await readErrorMessage(res);
 			}
 		}
-		toast.success('Moved to Trash', { description: deletedToastDescription(entries) });
+		const permanent = entriesAreTrashPurge(entries);
+		toast.success(permanent ? 'Permanently deleted' : 'Moved to Trash', {
+			description: deletedToastDescription(entries)
+		});
 		fsHistory.refresh();
 		notifyRefresh();
 		return null;
@@ -370,8 +389,9 @@
 
 	async function requestDelete(clicked: FlatEntry) {
 		const entries = contextMenuTargets(clicked);
+		const inTrash = entriesAreTrashPurge(entries);
 		const { dirs } = fileAndFolderCounts(entries);
-		if (dirs === 0) {
+		if (!inTrash && dirs === 0) {
 			const err = await performDeleteEntries(entries);
 			if (err) {
 				toast.error('Could not delete', { description: err });
@@ -401,10 +421,20 @@
 		}
 	}
 
+	const pendingPermanentPurge = $derived(entriesAreTrashPurge(pendingDeleteEntries));
+
 	const deleteDialogTitle = $derived.by(() => {
 		const list = pendingDeleteEntries;
 		const n = list.length;
 		if (n === 0) return 'Delete';
+		const perm = list.every((e) => isMediaTrashSubtreePath(e.path));
+		if (perm) {
+			if (n === 1) {
+				return list[0].type === 'directory' ? 'Delete folder permanently?' : 'Delete permanently?';
+			}
+			const { files, dirs } = fileAndFolderCounts(list);
+			return `Permanently delete ${formatFileFolderPhrase(files, dirs, 'comma')}?`;
+		}
 		if (n === 1) {
 			return list[0].type === 'directory' ? 'Delete folder' : 'Delete file';
 		}
@@ -415,7 +445,25 @@
 	const deleteDialogDescription = $derived.by(() => {
 		const list = pendingDeleteEntries;
 		const n = list.length;
-		const undoHint = ' You can restore with Undo (Ctrl+Z) or open Trash from the sidebar.';
+		const perm = n > 0 && list.every((e) => isMediaTrashSubtreePath(e.path));
+		const permanentWarning =
+			'This cannot be undone. The selection will be removed from disk and will not be recoverable through this app.';
+		if (perm) {
+			if (n === 1) {
+				return list[0].type === 'directory'
+					? `Permanently delete folder \`${list[0].name}\` and everything inside it? ${permanentWarning}`
+					: `Permanently delete \`${list[0].name}\`? ${permanentWarning}`;
+			}
+			const { files, dirs } = fileAndFolderCounts(list);
+			const hasDirs = dirs > 0;
+			return `This will permanently remove ${formatFileFolderPhrase(
+				files,
+				dirs,
+				'and'
+			)}.${hasDirs ? ' Selected folders and everything inside them will be permanently deleted.' : ''} ${permanentWarning}`;
+		}
+		const undoHint =
+			' You can restore with Undo (Ctrl+Z) or open Trash from the root folder (trash icon).';
 		if (n === 0) return `Items are moved to the Trash folder on disk.${undoHint}`;
 		if (n === 1) {
 			return list[0].type === 'directory'
@@ -572,7 +620,11 @@
 				Cancel
 			</Button>
 			<Button variant="destructive" onclick={confirmDelete} disabled={deleteSubmitting}>
-				{deleteSubmitting ? 'Deleting...' : 'Delete'}
+				{deleteSubmitting
+					? 'Deleting...'
+					: pendingPermanentPurge
+						? 'Delete permanently'
+						: 'Delete'}
 			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>
@@ -635,7 +687,9 @@
 														path: item.path,
 														url: buildThumbnailUrl(item),
 														type: item.type,
-														mimeType: item.mimeType
+														mimeType: item.mimeType,
+														viewerKind: item.viewerKind,
+														rootEntryKind: item.rootEntryKind
 													}}
 												/>
 											</Button>

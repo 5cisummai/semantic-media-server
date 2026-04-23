@@ -5,6 +5,7 @@
 		title?: string;
 		path?: string;
 		type?: 'file' | 'directory' | 'folder';
+		rootEntryKind?: 'trash';
 		children?: FileTreeNode[];
 	}
 
@@ -16,6 +17,8 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import FileIcon from '@lucide/svelte/icons/file';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import { isMediaTrashRootPath } from '$lib/media-trash-path';
 	import { createEventDispatcher } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import FileTreeSelf from './file-tree.svelte';
@@ -95,6 +98,12 @@
 {#each tree as item, index (getKey(item, index))}
 	{@const name = getName(item)}
 	{@const path = getPath(item)}
+	{@const trashIcon =
+		(typeof item === 'object' &&
+			item != null &&
+			!Array.isArray(item) &&
+			(item as FileTreeItem).rootEntryKind === 'trash') ||
+		isMediaTrashRootPath(path)}
 	{#if isFolder(item)}
 		{@const children = getChildren(item)}
 		{#if children.length > 0}
@@ -107,7 +116,11 @@
 					<ChevronRightIcon
 						class="size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
 					/>
-					<FolderIcon class="size-4 shrink-0 text-muted-foreground" />
+					{#if trashIcon}
+						<Trash2Icon class="size-4 shrink-0 text-muted-foreground" />
+					{:else}
+						<FolderIcon class="size-4 shrink-0 text-muted-foreground" />
+					{/if}
 					<span class="truncate">{name}</span>
 				</Collapsible.Trigger>
 				<Collapsible.Content>
@@ -127,6 +140,7 @@
 		{:else if folderChildrenLoader && mergeFolderChildren}
 			<LazyExpandableFolder
 				{name}
+				useTrashIcon={trashIcon}
 				{isSubTree}
 				prepareExpand={() => prepareExpandPath(path)}
 				load={() => folderChildrenLoader(path)}
@@ -140,7 +154,11 @@
 					: 'rounded-md'}"
 				onclick={() => select(path, 'directory')}
 			>
-				<FolderIcon class="size-4 shrink-0 text-muted-foreground" />
+				{#if trashIcon}
+					<Trash2Icon class="size-4 shrink-0 text-muted-foreground" />
+				{:else}
+					<FolderIcon class="size-4 shrink-0 text-muted-foreground" />
+				{/if}
 				<span class="truncate">{name}</span>
 			</Button>
 		{/if}

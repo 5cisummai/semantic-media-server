@@ -2,21 +2,27 @@
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import FolderIcon from '@lucide/svelte/icons/folder';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import type { FileTreeNode } from './file-tree.svelte';
 
 	let {
 		name,
+		useTrashIcon = false,
 		isSubTree,
 		load,
 		onLoaded,
 		prepareExpand
 	}: {
 		name: string;
+		/** Virtual Trash root row (merged listing): show trash icon instead of folder. */
+		useTrashIcon?: boolean;
 		isSubTree: boolean;
 		load: () => Promise<FileTreeNode[]>;
 		onLoaded: (children: FileTreeNode[]) => void;
 		prepareExpand: () => void;
 	} = $props();
+
+	const trashIcon = $derived(useTrashIcon);
 
 	let open = $state(false);
 	let loading = $state(false);
@@ -47,7 +53,11 @@
 		<ChevronRightIcon
 			class="size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
 		/>
-		<FolderIcon class="size-4 shrink-0 text-muted-foreground" />
+		{#if trashIcon}
+			<Trash2Icon class="size-4 shrink-0 text-muted-foreground" />
+		{:else}
+			<FolderIcon class="size-4 shrink-0 text-muted-foreground" />
+		{/if}
 		<span class="truncate">{name}</span>
 	</Collapsible.Trigger>
 	<Collapsible.Content>

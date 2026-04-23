@@ -19,6 +19,8 @@ export interface MediaEntry {
 	modified?: string;
 	mimeType?: string;
 	viewerKind?: MediaViewerKind;
+	/** Synthetic root row (merged root listing only): Trash opens `N/.trash` on disk. */
+	rootEntryKind?: 'trash';
 }
 
 export interface DriveInfo {
@@ -348,6 +350,50 @@ export async function appendPersonalRootEntry(
 	}
 }
 
+/** Virtual Trash row per media drive at the merged root (like personal folders). */
+export async function appendTrashRootEntry(
+	entries: MediaEntry[],
+	_viewer: MediaPathUser
+): Promise<MediaEntry[]> {
+	const roots = getMediaRoots();
+	const trashEntries: MediaEntry[] = [];
+
+	for (const e of entries) {
+		if (e.type !== 'directory' || !/^\d+$/.test(e.path)) continue;
+		const i = parseInt(e.path, 10);
+		if (Number.isNaN(i) || i < 0 || i >= roots.length) continue;
+
+		const rootAbs = path.resolve(roots[i]!);
+		const trashFull = path.join(rootAbs, '.trash');
+		let modified = new Date().toISOString();
+		try {
+			modified = (await fs.stat(trashFull)).mtime.toISOString();
+		} catch {
+			try {
+				modified = (await fs.stat(rootAbs)).mtime.toISOString();
+			} catch {
+				continue;
+			}
+		}
+
+		const driveLabel = path.basename(roots[i]!) || rootAbs;
+		trashEntries.push({
+			name: roots.length > 1 ? `Trash · ${driveLabel}` : 'Trash',
+			path: `${i}/.trash`,
+			fullPath: trashFull,
+			type: 'directory',
+			modified,
+			rootEntryKind: 'trash'
+		});
+	}
+
+	const withoutDup = entries.filter((e) => e.rootEntryKind !== 'trash');
+	return [...withoutDup, ...trashEntries].sort((a, b) => {
+		if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+		return a.name.localeCompare(b.name);
+	});
+}
+
 export function getMediaInfo(filename: string) {
 	const ext = path.extname(filename).slice(1).toLowerCase();
 	return (
@@ -466,7 +512,8 @@ export async function listDirectory(
 			}
 		}
 		if (viewer) {
-			return appendPersonalRootEntry(entries, viewer);
+			const withPersonal = await appendPersonalRootEntry(entries, viewer);
+			return appendTrashRootEntry(withPersonal, viewer);
 		}
 		return entries;
 	}
@@ -477,7 +524,7 @@ export async function listDirectory(
 	if (!resolved) throw new Error('Invalid path');
 
 	const dirents = (await fs.readdir(resolved.fullPath, { withFileTypes: true })).filter(
-		(d) => !d.name.startsWith('.') || d.name === '.trash'
+		(d) => !d.name.startsWith('.')
 	);
 
 	const stats = await Promise.all(

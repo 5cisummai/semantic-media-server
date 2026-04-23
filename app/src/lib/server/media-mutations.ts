@@ -9,6 +9,7 @@ import {
 	resolveMediaPath,
 	type MediaPathUser
 } from '$lib/server/services/storage';
+import { isMediaTrashSubtreePath } from '$lib/media-trash-path';
 import { moveToTrash } from '$lib/server/trash';
 import { recordAction, FsOperation } from '$lib/server/fs-history';
 
@@ -82,6 +83,11 @@ async function canDeletePath(
 		return 'Only files and folders can be deleted.';
 	}
 
+	// Purging the `.trash` tree: anyone with path access may delete (browse already enforced).
+	if (isMediaTrashSubtreePath(relativePath)) {
+		return null;
+	}
+
 	if (!ctx.isAdmin) {
 		if (stat.isDirectory()) {
 			return 'Only administrators can delete folders.';
@@ -122,10 +128,20 @@ export async function deleteMediaPath(
 
 	const semanticPaths = await collectNestedRelativePaths(resolved.fullPath, relativePath);
 
-	const trashKey = randomUUID();
+	const purgeTrash = isMediaTrashSubtreePath(relativePath);
+	let trashKeyForHistory: string | null = null;
 
 	try {
-		await moveToTrash(resolved.fullPath, trashKey);
+		if (purgeTrash) {
+			if (stat.isDirectory()) {
+				await fs.rm(resolved.fullPath, { recursive: true, force: true });
+			} else {
+				await fs.unlink(resolved.fullPath);
+			}
+		} else {
+			trashKeyForHistory = randomUUID();
+			await moveToTrash(resolved.fullPath, trashKeyForHistory);
+		}
 	} catch (err) {
 		if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
 			return `Error: path not found "${relativePath}".`;
@@ -143,17 +159,19 @@ export async function deleteMediaPath(
 		semanticPaths.map((p) => deleteSemanticEntryByRelativePath(p).catch(() => undefined))
 	);
 
-	if (historyCtx) {
+	if (historyCtx && !purgeTrash && trashKeyForHistory) {
 		await recordAction({
 			userId: historyCtx.userId,
 			workspaceId: historyCtx.workspaceId,
 			operation: FsOperation.DELETE,
-			payload: { relativePath, trashKey, root: resolved.root },
+			payload: { relativePath, trashKey: trashKeyForHistory, root: resolved.root },
 			description: `Deleted ${relativePath}`
 		});
 	}
 
-	return `Deleted successfully: ${relativePath}`;
+	return purgeTrash
+		? `Permanently deleted: ${relativePath}`
+		: `Deleted successfully: ${relativePath}`;
 }
 
 export async function moveMediaPath(
