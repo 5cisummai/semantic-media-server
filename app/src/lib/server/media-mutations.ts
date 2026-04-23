@@ -2,7 +2,11 @@ import fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import * as path from '$lib/server/paths';
 import { db } from '$lib/server/db';
-import { deleteSemanticEntryByRelativePath } from '$lib/server/semantic';
+import {
+	removeIndexedMediaByExactPaths,
+	removeIndexedMediaUnderPathPrefix,
+	resolveTrashPurgeBrainTargets
+} from '$lib/server/brain-cleanup';
 import {
 	getMediaRoots,
 	isPersonalFolderRoot,
@@ -155,9 +159,22 @@ export async function deleteMediaPath(
 		});
 	}
 
-	await Promise.allSettled(
-		semanticPaths.map((p) => deleteSemanticEntryByRelativePath(p).catch(() => undefined))
-	);
+	const ws = historyCtx?.workspaceId ?? undefined;
+	try {
+		if (purgeTrash) {
+			const targets = await resolveTrashPurgeBrainTargets(semanticPaths);
+			for (const p of targets.subtreePrefixes) {
+				await removeIndexedMediaUnderPathPrefix(p, ws);
+			}
+			if (targets.exactFiles.length > 0) {
+				await removeIndexedMediaByExactPaths(targets.exactFiles, ws);
+			}
+		} else if (semanticPaths.length > 0) {
+			await removeIndexedMediaByExactPaths(semanticPaths, ws);
+		}
+	} catch {
+		// best-effort Qdrant cleanup
+	}
 
 	if (historyCtx && !purgeTrash && trashKeyForHistory) {
 		await recordAction({
@@ -233,8 +250,8 @@ export async function moveMediaPath(
 	const semanticToDrop = stat.isDirectory()
 		? await collectNestedRelativePaths(srcRes.fullPath, source)
 		: [source];
-	await Promise.allSettled(
-		semanticToDrop.map((p) => deleteSemanticEntryByRelativePath(p).catch(() => undefined))
+	await removeIndexedMediaByExactPaths(semanticToDrop, historyCtx?.workspaceId ?? undefined).catch(
+		() => undefined
 	);
 
 	await fs.rename(srcRes.fullPath, dstRes.fullPath);

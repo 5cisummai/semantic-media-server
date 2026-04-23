@@ -189,6 +189,22 @@ export const brain = {
 		});
 	},
 
+	/** Delete all points matching a Qdrant payload filter (no ids required). */
+	async deletePointsByFilter(
+		collection: string,
+		filter: {
+			must?: Array<Record<string, unknown>>;
+			should?: Array<Record<string, unknown>>;
+			minimum_should_match?: number;
+		}
+	): Promise<void> {
+		if (!(await collectionExists(collection))) return;
+		await request(`/collections/${collection}/points/delete?wait=true`, {
+			method: 'POST',
+			body: JSON.stringify({ filter })
+		});
+	},
+
 	async scrollWithFilter(
 		collection: string,
 		params?: {

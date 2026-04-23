@@ -10,6 +10,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import FolderPlusIcon from '@lucide/svelte/icons/folder-plus';
 	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
+	import ListIcon from '@lucide/svelte/icons/list';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import UploadIcon from '@lucide/svelte/icons/upload';
@@ -106,7 +107,17 @@
 	const normalizedSearchQuery = $derived(searchQuery.trim().toLowerCase());
 
 	const SEMANTIC_GROUPS = {
-		image: ['image', 'images', 'photo', 'photos', 'pic', 'pics', 'picture', 'pictures', 'screenshot'],
+		image: [
+			'image',
+			'images',
+			'photo',
+			'photos',
+			'pic',
+			'pics',
+			'picture',
+			'pictures',
+			'screenshot'
+		],
 		video: ['video', 'videos', 'movie', 'movies', 'clip', 'clips', 'film', 'films'],
 		audio: ['audio', 'song', 'songs', 'music', 'track', 'tracks', 'sound', 'sounds', 'voice'],
 		document: ['document', 'documents', 'doc', 'docs', 'pdf', 'text', 'note', 'notes'],
@@ -232,6 +243,9 @@
 	);
 
 	const GRID_TILE_SIZE_KEY = 'fileBrowser.gridTileSize';
+	const FILE_VIEW_MODE_KEY = 'fileBrowser.viewMode';
+
+	type FileViewMode = 'grid' | 'list';
 
 	function readStoredGridTileSize(): number {
 		if (!browser) return 42;
@@ -246,8 +260,20 @@
 		}
 	}
 
+	function readStoredViewMode(): FileViewMode {
+		if (!browser) return 'grid';
+		try {
+			const raw = localStorage.getItem(FILE_VIEW_MODE_KEY);
+			return raw === 'list' ? 'list' : 'grid';
+		} catch {
+			return 'grid';
+		}
+	}
+
 	let gridTileSize = $state(42);
 	let gridTileSizeReady = $state(false);
+	let viewMode = $state<FileViewMode>('grid');
+	let viewModeReady = $state(false);
 	const isMobile = new IsMobile();
 	const isSmallMobile = new IsSmallMobile();
 	let showSmallMobileSearch = $state(false);
@@ -255,6 +281,11 @@
 	$effect(() => {
 		if (!browser || !gridTileSizeReady) return;
 		localStorage.setItem(GRID_TILE_SIZE_KEY, String(gridTileSize));
+	});
+
+	$effect(() => {
+		if (!browser || !viewModeReady) return;
+		localStorage.setItem(FILE_VIEW_MODE_KEY, viewMode);
 	});
 
 	/** Minimum column width (px) for the file grid — larger values yield bigger tiles. */
@@ -270,6 +301,8 @@
 	onMount(() => {
 		gridTileSize = readStoredGridTileSize();
 		gridTileSizeReady = true;
+		viewMode = readStoredViewMode();
+		viewModeReady = true;
 		fsHistory.refresh();
 	});
 
@@ -356,13 +389,15 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="flex h-full flex-col overflow-hidden">
-	<header class="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-		<Breadcrumb.Root class="min-w-0 flex-1">
-			<Breadcrumb.List>
+	<header
+		class="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/80 px-3 py-2 sm:px-4"
+	>
+		<Breadcrumb.Root class="min-w-0 flex-1 max-sm:order-1 max-sm:w-full sm:order-1">
+			<Breadcrumb.List class="justify-start gap-1 text-left">
 				<Breadcrumb.Item>
 					<Button
 						variant="link"
-						class="h-auto p-0 text-sm font-medium text-muted-foreground"
+						class="h-auto p-0 text-sm font-medium text-muted-foreground hover:text-foreground"
 						onclick={() => navigateTo('')}
 					>
 						Root
@@ -372,11 +407,11 @@
 					<Breadcrumb.Separator />
 					<Breadcrumb.Item>
 						{#if index === pathSegments.length - 1}
-							<Breadcrumb.Page class="text-sm font-medium">{segment}</Breadcrumb.Page>
+							<Breadcrumb.Page class="text-sm font-semibold">{segment}</Breadcrumb.Page>
 						{:else}
 							<Button
 								variant="link"
-								class="h-auto p-0 text-sm font-medium text-muted-foreground"
+								class="h-auto p-0 text-sm font-medium text-muted-foreground hover:text-foreground"
 								onclick={() => navigateTo(pathSegments.slice(0, index + 1).join('/'))}
 							>
 								{segment}
@@ -387,29 +422,14 @@
 			</Breadcrumb.List>
 		</Breadcrumb.Root>
 
-		{#if !isSmallMobile.current}
-			<div class="flex min-w-48 flex-1 items-center gap-2 sm:max-w-sm">
-				<div class="relative w-full">
-					<SearchIcon
-						class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-					/>
-					<Input
-						type="search"
-						bind:value={searchQuery}
-						placeholder="Search this folder..."
-						class="h-8 w-full pl-8"
-						aria-label="Search files in this folder"
-					/>
-				</div>
-			</div>
-		{/if}
-
-		<div class="flex shrink-0 flex-wrap items-center gap-2">
-			{#if !isSmallMobile.current}
+		<div
+			class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2 max-sm:order-2 sm:order-2"
+		>
+			{#if !isSmallMobile.current && viewMode === 'grid'}
 				<ButtonGroup title="Tile size — drag to show more or fewer columns">
 					<div
 						data-slot="button-group-text"
-						class="flex max-w-[11rem] min-w-0 items-center gap-2 rounded-md border bg-muted px-2.5 py-1 text-sm font-medium shadow-xs sm:max-w-[13rem] [&_svg:not([class*='size-'])]:size-4"
+						class="flex max-w-44 min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/70 px-2.5 py-1 text-sm font-medium shadow-xs sm:max-w-52 [&_svg:not([class*='size-'])]:size-4"
 					>
 						<LayoutGridIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
 						<input
@@ -423,6 +443,33 @@
 					</div>
 				</ButtonGroup>
 			{/if}
+
+			<ButtonGroup title="View mode">
+				<Button
+					type="button"
+					variant={viewMode === 'grid' ? 'default' : 'outline'}
+					size="icon-sm"
+					title="Grid view"
+					aria-label="Grid view"
+					onclick={() => {
+						viewMode = 'grid';
+					}}
+				>
+					<LayoutGridIcon class="size-4" />
+				</Button>
+				<Button
+					type="button"
+					variant={viewMode === 'list' ? 'default' : 'outline'}
+					size="icon-sm"
+					title="List view"
+					aria-label="List view"
+					onclick={() => {
+						viewMode = 'list';
+					}}
+				>
+					<ListIcon class="size-4" />
+				</Button>
+			</ButtonGroup>
 
 			<ButtonGroup>
 				{#if isSmallMobile.current}
@@ -506,8 +553,10 @@
 			</ButtonGroup>
 		</div>
 
-		{#if isSmallMobile.current && showSmallMobileSearch}
-			<div class="w-full">
+		{#if !isSmallMobile.current}
+			<div
+				class="flex min-w-56 shrink-0 items-center justify-end gap-2 max-sm:order-3 sm:order-3 sm:w-72"
+			>
 				<div class="relative w-full">
 					<SearchIcon
 						class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -516,7 +565,24 @@
 						type="search"
 						bind:value={searchQuery}
 						placeholder="Search this folder..."
-						class="h-8 w-full pl-8"
+						class="h-8 w-full rounded-lg border-border/70 bg-muted/40 pl-8"
+						aria-label="Search files in this folder"
+					/>
+				</div>
+			</div>
+		{/if}
+
+		{#if isSmallMobile.current && showSmallMobileSearch}
+			<div class="order-3 w-full">
+				<div class="relative w-full">
+					<SearchIcon
+						class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+					/>
+					<Input
+						type="search"
+						bind:value={searchQuery}
+						placeholder="Search this folder..."
+						class="h-8 w-full rounded-lg border-border/70 bg-muted/40 pl-8"
 						aria-label="Search files in this folder"
 					/>
 				</div>
@@ -527,11 +593,14 @@
 	{#if isSmallMobile.current}
 		<div class="flex-1 overflow-hidden">
 			{#if refreshing}
-				<div class="flex h-full items-center justify-center p-8 text-muted-foreground">Loading...</div>
+				<div class="flex h-full items-center justify-center p-8 text-muted-foreground">
+					Loading...
+				</div>
 			{:else}
 				<FileGrid
 					bind:this={fileGrid}
 					fileTree={filteredFolderContents}
+					{viewMode}
 					{gridMinTilePx}
 					selectedPaths={effectiveGridSelectedPaths}
 					{currentPath}
@@ -564,6 +633,7 @@
 					<FileGrid
 						bind:this={fileGrid}
 						fileTree={filteredFolderContents}
+						{viewMode}
 						{gridMinTilePx}
 						selectedPaths={effectiveGridSelectedPaths}
 						{currentPath}

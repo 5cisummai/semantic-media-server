@@ -270,3 +270,79 @@ export async function ingestDirectoryByRootIndex(
 		...counters
 	};
 }
+
+function normalizeMediaClientPath(p: string): string {
+	return p.replace(/^\/+/, '').replace(/\\/g, '/');
+}
+
+function rootIndexFromClientPath(rel: string): number {
+	const first = rel.split('/')[0];
+	const n = Number.parseInt(first ?? '', 10);
+	return Number.isNaN(n) ? -1 : n;
+}
+
+/** Delete ingest chunks whose payload `path` matches one of the given media paths. */
+export async function deleteIngestChunksByRelativePaths(
+	paths: string[],
+	workspaceId?: string
+): Promise<void> {
+	const coll = collectionName(workspaceId);
+	const uniq = [...new Set(paths.map(normalizeMediaClientPath))].filter((p) => p.length > 0);
+	const CHUNK = 20;
+
+	for (let i = 0; i < uniq.length; i += CHUNK) {
+		const slice = uniq.slice(i, i + CHUNK);
+		await brain.deletePointsByFilter(coll, {
+			should: slice.map((p) => ({ key: 'path', match: { value: p } })),
+			minimum_should_match: 1
+		}).catch(() => undefined);
+	}
+}
+
+/** Delete ingest chunks for `prefix` and every file path under that folder prefix. */
+export async function deleteIngestChunksUnderPathPrefix(
+	prefix: string,
+	workspaceId?: string
+): Promise<void> {
+	const normalized = normalizeMediaClientPath(prefix).replace(/\/+$/, '');
+	if (!normalized) return;
+
+	const coll = collectionName(workspaceId);
+	const rootIdx = rootIndexFromClientPath(normalized);
+	const filter =
+		rootIdx >= 0 ? { must: [{ key: 'rootIndex', match: { value: rootIdx } }] } : undefined;
+
+	let offset: string | number | null = null;
+	const buf: string[] = [];
+	const flush = async () => {
+		if (buf.length === 0) return;
+		await brain.deletePoints(coll, buf).catch(() => undefined);
+		buf.length = 0;
+	};
+
+	try {
+		for (;;) {
+			const page = await brain.scrollWithFilter(coll, {
+				limit: 128,
+				offset,
+				filter,
+				withPayload: true
+			});
+
+			for (const pt of page.points) {
+				const p = String(pt.payload?.path ?? '');
+				if (p === normalized || p.startsWith(normalized + '/')) {
+					buf.push(String(pt.id));
+					if (buf.length >= 256) await flush();
+				}
+			}
+
+			offset = page.nextOffset;
+			if (!offset) break;
+		}
+	} catch {
+		// collection missing or Qdrant error — best-effort
+	} finally {
+		await flush();
+	}
+}

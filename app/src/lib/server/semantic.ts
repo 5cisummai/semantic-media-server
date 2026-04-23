@@ -243,6 +243,54 @@ export async function deleteSemanticEntryByRelativePath(
 	await brain.deletePoints(collectionName(workspaceId), [createPointId(relativePath)]);
 }
 
+/** Remove filename semantic points whose indexed path is exactly `prefix` or under that folder. */
+export async function deleteSemanticEntriesUnderPathPrefix(
+	prefix: string,
+	workspaceId?: string
+): Promise<void> {
+	const normalized = prefix.replace(/^\/+/, '').replace(/\\/g, '/').replace(/\/+$/, '');
+	if (!normalized) return;
+
+	const coll = collectionName(workspaceId);
+	const rootIdx = rootIndexFromPath(normalized);
+	const filter =
+		rootIdx >= 0 ? { must: [{ key: 'rootIndex', match: { value: rootIdx } }] } : undefined;
+
+	let offset: string | number | null = null;
+	const buf: string[] = [];
+	const flush = async () => {
+		if (buf.length === 0) return;
+		await brain.deletePoints(coll, buf).catch(() => undefined);
+		buf.length = 0;
+	};
+
+	try {
+		for (;;) {
+			const page = await brain.scrollWithFilter(coll, {
+				limit: 128,
+				offset,
+				filter,
+				withPayload: true
+			});
+
+			for (const pt of page.points) {
+				const p = String(pt.payload?.path ?? '');
+				if (p === normalized || p.startsWith(normalized + '/')) {
+					buf.push(String(pt.id));
+					if (buf.length >= 256) await flush();
+				}
+			}
+
+			offset = page.nextOffset;
+			if (!offset) break;
+		}
+	} catch {
+		// collection missing or Qdrant error — best-effort
+	} finally {
+		await flush();
+	}
+}
+
 async function toMediaFileEntry(relativePath: string): Promise<MediaEntry | null> {
 	const resolved = resolveSafePath(relativePath);
 	if (!resolved) return null;

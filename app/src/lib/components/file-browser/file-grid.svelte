@@ -17,7 +17,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { createEventDispatcher } from 'svelte';
-	import { Grid } from 'svelte-virtual';
+	import { Grid, List } from 'svelte-virtual';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -35,11 +35,13 @@
 		fileTree = [],
 		selectedPaths = [],
 		currentPath = '',
+		viewMode = 'grid',
 		gridMinTilePx = 176
 	}: {
 		fileTree?: FileEntry[];
 		selectedPaths?: string[];
 		currentPath?: string;
+		viewMode?: 'grid' | 'list';
 		/** Minimum column width — larger values produce bigger tiles and fewer columns. */
 		gridMinTilePx?: number;
 	} = $props();
@@ -94,6 +96,7 @@
 	);
 	const cellWidth = $derived(Math.max(40, viewportW / gridColumnCount));
 	const cellHeight = $derived(Math.ceil(cellWidth + 48));
+	const listItemHeight = 72;
 	const gridHeight = $derived(Math.max(200, viewportH));
 
 	function encodeMediaPath(relativePath: string): string {
@@ -647,7 +650,7 @@
 					<div class="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
 						This folder is empty.
 					</div>
-				{:else}
+				{:else if viewMode === 'grid'}
 					<Grid
 						itemCount={items.length}
 						itemHeight={cellHeight}
@@ -672,10 +675,10 @@
 												variant="ghost"
 												role="option"
 												aria-selected={selectedPaths.includes(item.path)}
-												class="aspect-square h-full min-h-0 w-full flex-col items-stretch justify-start gap-1 rounded-xl p-1 text-center whitespace-normal {selectedPaths.includes(
+												class="aspect-square h-full min-h-0 w-full flex-col items-stretch justify-start gap-1 rounded-xl p-1 text-center whitespace-normal ring-offset-background {selectedPaths.includes(
 													item.path
 												)
-													? 'bg-muted'
+													? 'bg-muted ring-2 ring-ring ring-offset-1'
 													: ''}"
 												onclick={(e) => onTileClick(item, e)}
 												onkeydown={(e) => onTileKeydown(item, e)}
@@ -717,6 +720,81 @@
 							{/if}
 						{/snippet}
 					</Grid>
+				{:else}
+					<List
+						itemCount={items.length}
+						itemSize={listItemHeight}
+						height={gridHeight}
+						overScan={4}
+						class="rounded-md"
+						role="listbox"
+						aria-multiselectable="true"
+						getKey={(index) => items[index]?.path ?? index}
+					>
+						{#snippet item({ index, style })}
+							{@const item = items[index]}
+							{#if item}
+								{@const targets = contextMenuTargets(item)}
+								<div role="presentation" class="box-border p-0.5" {style}>
+									<ContextMenu.Root onOpenChange={(open) => onTileContextMenuOpen(item, open)}>
+										<ContextMenu.Trigger class="block w-full">
+											<Button
+												type="button"
+												variant="ghost"
+												role="option"
+												aria-selected={selectedPaths.includes(item.path)}
+												class="h-[calc(100%-2px)] w-full justify-start gap-3 rounded-lg px-2 py-1 text-left ring-offset-background {selectedPaths.includes(
+													item.path
+												)
+													? 'bg-muted ring-2 ring-ring ring-offset-1'
+													: ''}"
+												onclick={(e) => onTileClick(item, e)}
+												onkeydown={(e) => onTileKeydown(item, e)}
+											>
+												<div class="size-11 shrink-0">
+													<FilePreviewTile
+														class="h-full w-full"
+														showLabel={false}
+														item={{
+															name: item.name,
+															path: item.path,
+															url: buildThumbnailUrl(item),
+															type: item.type,
+															mimeType: item.mimeType,
+															viewerKind: item.viewerKind,
+															rootEntryKind: item.rootEntryKind
+														}}
+													/>
+												</div>
+												<div class="min-w-0 flex-1">
+													<p class="truncate text-sm font-medium">{item.name}</p>
+													<p class="truncate text-xs text-muted-foreground">{item.path}</p>
+												</div>
+											</Button>
+										</ContextMenu.Trigger>
+										<ContextMenu.Content class="w-56">
+											{#if targets.length === 1}
+												<ContextMenu.Item onclick={() => activateEntry(targets[0])}
+													>Open</ContextMenu.Item
+												>
+												<ContextMenu.Item onclick={renameNotSupported}>Rename</ContextMenu.Item>
+											{/if}
+											<ContextMenu.Item onclick={() => copyPathsForTargets(item)}
+												>{targets.length === 1 ? 'Copy path' : `Copy ${targets.length} paths`}</ContextMenu.Item
+											>
+											<ContextMenu.Separator />
+											<ContextMenu.Item
+												variant="destructive"
+												onclick={() => requestDelete(item)}
+											>
+												{deleteMenuLabel(targets)}
+											</ContextMenu.Item>
+										</ContextMenu.Content>
+									</ContextMenu.Root>
+								</div>
+							{/if}
+						{/snippet}
+					</List>
 				{/if}
 			</div>
 		</div>

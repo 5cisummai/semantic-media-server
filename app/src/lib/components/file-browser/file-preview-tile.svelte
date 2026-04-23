@@ -23,10 +23,12 @@
 
 	let {
 		item,
-		class: className = ''
+		class: className = '',
+		showLabel = true
 	}: {
 		item: FilePreviewItem;
 		class?: string;
+		showLabel?: boolean;
 	} = $props();
 
 	const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'tiff']);
@@ -120,7 +122,9 @@
 		</div>
 	{/if}
 
-	<div class="w-full min-w-0 shrink-0 px-0.5">
-		<p class="truncate text-center text-sm font-medium text-foreground">{normalizedName}</p>
-	</div>
+	{#if showLabel}
+		<div class="w-full min-w-0 shrink-0 px-0.5">
+			<p class="truncate text-center text-sm font-medium text-foreground">{normalizedName}</p>
+		</div>
+	{/if}
 </article>

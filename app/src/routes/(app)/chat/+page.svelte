@@ -241,7 +241,7 @@
 </script>
 
 {#snippet agentsPanel()}
-	<Sidebar.Header class="border-b border-sidebar-border bg-sidebar px-2 pt-2 pb-3">
+	<Sidebar.Header class="border-sidebar-border bg-sidebar px-2 pt-2 pb-3">
 		<div class="px-1 pb-2">
 			<span class="section-label">Chats</span>
 		</div>

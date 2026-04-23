@@ -4,7 +4,11 @@ import fs from 'node:fs/promises';
 import * as path from '$lib/server/paths';
 import { isPersonalFolderRoot, resolveMediaPath } from '$lib/server/services/storage';
 import { isMediaTrashSubtreePath } from '$lib/media-trash-path';
-import { deleteSemanticEntryByRelativePath } from '$lib/server/semantic';
+import {
+	removeIndexedMediaByExactPaths,
+	removeIndexedMediaUnderPathPrefix,
+	resolveTrashPurgeBrainTargets
+} from '$lib/server/brain-cleanup';
 import { db } from '$lib/server/db';
 import { requireAuth, requirePathAccess, audit } from '$lib/server/api';
 import { moveToTrash } from '$lib/server/trash';
@@ -114,17 +118,21 @@ export const DELETE: RequestHandler = async ({ params, locals, request }) => {
 		});
 	}
 
-	const semanticDeletes = await Promise.allSettled(
-		semanticPaths.map(async (semanticPath) => {
-			await deleteSemanticEntryByRelativePath(semanticPath);
-			return semanticPath;
-		})
-	);
-
-	for (const [index, result] of semanticDeletes.entries()) {
-		if (result.status === 'rejected') {
-			console.warn('Failed to delete semantic index entry:', semanticPaths[index], result.reason);
+	const ws = workspaceId ?? undefined;
+	try {
+		if (purgeTrash) {
+			const targets = await resolveTrashPurgeBrainTargets(semanticPaths);
+			for (const p of targets.subtreePrefixes) {
+				await removeIndexedMediaUnderPathPrefix(p, ws);
+			}
+			if (targets.exactFiles.length > 0) {
+				await removeIndexedMediaByExactPaths(targets.exactFiles, ws);
+			}
+		} else if (semanticPaths.length > 0) {
+			await removeIndexedMediaByExactPaths(semanticPaths, ws);
 		}
+	} catch (err) {
+		console.warn('Failed to remove brain index entries for delete:', err);
 	}
 
 	// Record history action (skip for trash purge — nothing to restore from nested trash)

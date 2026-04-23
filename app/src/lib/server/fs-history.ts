@@ -9,6 +9,7 @@ import fs from 'node:fs/promises';
 import { db } from '$lib/server/db';
 import { FsOperation, FsActionStatus } from '@prisma/client';
 import { restoreFromTrash, cleanTrashEntry } from '$lib/server/trash';
+import { removeIndexedMediaByExactPaths, removeIndexedMediaUnderPathPrefix } from '$lib/server/brain-cleanup';
 import { resolveMediaPathForUserId } from '$lib/server/services/storage';
 
 export { FsOperation, FsActionStatus };
@@ -207,12 +208,19 @@ export async function redoUserAction(userId: string, workspaceId?: string | null
 			const p = payload as DeletePayload;
 			const resolved = await resolveMediaPathForUserId(p.relativePath, userId);
 			if (!resolved) throw new Error(`Invalid path: ${p.relativePath}`);
+			const stat = await fs.stat(resolved.fullPath);
 			// Re-delete: move back to trash
 			const { moveToTrash } = await import('$lib/server/trash');
 			await moveToTrash(resolved.fullPath, p.trashKey);
 			await db.uploadedFile
 				.deleteMany({ where: { relativePath: p.relativePath } })
 				.catch(() => undefined);
+			const ws = action.workspaceId ?? undefined;
+			if (stat.isDirectory()) {
+				await removeIndexedMediaUnderPathPrefix(p.relativePath, ws).catch(() => undefined);
+			} else {
+				await removeIndexedMediaByExactPaths([p.relativePath], ws).catch(() => undefined);
+			}
 			break;
 		}
 		case FsOperation.MOVE: {
@@ -304,12 +312,14 @@ export async function pruneHistory(workspaceId: string | null) {
 			workspaceId: workspaceId ?? null,
 			id: { notIn: keepIds }
 		},
-		select: { id: true, operation: true, payload: true }
+		select: { id: true, operation: true, payload: true, workspaceId: true }
 	});
 
 	for (const action of toDelete) {
 		if (action.operation === FsOperation.DELETE) {
 			const p = action.payload as unknown as DeletePayload;
+			const ws = action.workspaceId ?? undefined;
+			await removeIndexedMediaUnderPathPrefix(p.relativePath, ws).catch(() => undefined);
 			await cleanTrashEntry(p.trashKey, p.root).catch(() => undefined);
 		}
 	}

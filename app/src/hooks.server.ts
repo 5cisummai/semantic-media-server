@@ -1,5 +1,6 @@
 import { verifyJwt } from '$lib/server/auth';
 import { db } from '$lib/server/db';
+import '$lib/server/trash-retention';
 import { ensurePersonalFolderMigration } from '$lib/server/services/storage';
 import type { Handle } from '@sveltejs/kit';
 import type { UserRole } from '@prisma/client';
